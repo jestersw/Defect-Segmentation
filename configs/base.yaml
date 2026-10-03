@@ -4,6 +4,7 @@ data:
   categories: [tile, hazelnut, wood, metal_nut, capsule]
   splits_dir: splits
   split_ratios: [0.70, 0.15, 0.15]
+  exclude_defect_types: [metal_nut/flip]
   image_size: 512
   normalize: imagenet
 model:
