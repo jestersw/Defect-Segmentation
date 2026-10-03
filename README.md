@@ -72,7 +72,11 @@ Masks use OpenCV `INTER_NEAREST`, then `> 0` binarization and
 `skimage.measure.label(connectivity=2)` (8-connected components). All component
 areas are measured after resizing, without augmentation. Empty good-image masks
 have zero components and blank area statistics. The histogram and CSV describe
-all available masks; they do not set the evaluation threshold.
+all available masks; they do not set the evaluation threshold. The configured
+`data.exclude_defect_types: [metal_nut/flip]` excludes 23 images from the experiment
+before balancing and split generation. Inventory checks, the statistics CSV, and
+the histogram still cover all 416 original masks; the threshold uses the filtered
+training split only.
 
 ## Fixed train/validation/test split (issue #7)
 
@@ -80,9 +84,11 @@ The shared manifests are `splits/train.txt`, `splits/val.txt`, and `splits/test.
 Use these files for every experiment. This custom split defines the supervised
 evaluation protocol for the project.
 
-The pool contains all 416 defective images from official `test`, all 137 official
-`test/good` images, and 279 sampled official `train/good` images. Each category
-has equal good and defective counts in the pool (832 images overall).
+The pool contains the 393 retained defective images from official `test`, all 137
+official `test/good` images, and 256 sampled official `train/good` images. Each
+category has equal good and defective counts in the pool (786 images overall).
+The 23 `metal_nut/flip` images are excluded as global orientation anomalies whose
+masks cover roughly 48% of an image. Balancing is performed after this exclusion.
 
 ```sh
 python scripts/make_split.py
@@ -98,9 +104,9 @@ between good and defective images.
 
 | Split | Defective | Good | Total |
 | --- | ---: | ---: | ---: |
-| Train | 291 | 291 | 582 |
-| Validation | 64 | 61 | 125 |
-| Test | 61 | 64 | 125 |
+| Train | 275 | 275 | 550 |
+| Validation | 61 | 57 | 118 |
+| Test | 57 | 61 | 118 |
 
 Before writing outputs, the script checks that every pooled path appears exactly
 once and that no byte-identical images (MD5) occur in different splits. Strata
@@ -140,9 +146,14 @@ and defect components in the training split.
 components only**, NumPy's linear interpolation method, and SHA-256 hashes of all
 three manifests. Per the shared protocol, this step requires 512 × 512 masks.
 A small defect has `area < small_defect_area_px` (strict inequality, no rounding).
-The shared train split contains 468 defect components. Its 33rd percentile is
-approximately **1,102.11 pixels**, recorded at full precision in the JSON and
-`eval.small_defect_area_px`. This value is ready to report in issues #6 and #1.
+The shared train split contains 449 defect components. Its 33rd percentile is
+approximately **859.28 pixels** (**0.3278%** of a 512 × 512 image), recorded at
+full precision in the JSON and `eval.small_defect_area_px`.
+This supersedes the earlier 1,102.11-pixel threshold and 832-image split that
+included `metal_nut/flip`. After the approved exclusion, the manifests, summary,
+hashes, and threshold were regenerated. Existing clones
+with the earlier split must deliberately run `python scripts/make_split.py --overwrite`
+followed by the statistics command above before using the new protocol.
 Without `--splits-dir`, no threshold is estimated;
 any threshold file from an earlier run is not refreshed.
 
@@ -163,6 +174,26 @@ No defect mask became entirely empty after resizing. See
 These are descriptive results over all available images. The evaluation
 threshold comes exclusively from the shared training split; see
 [`results/small_defect_threshold.json`](results/small_defect_threshold.json).
+
+## Dataset Preparation report section (issue #8)
+
+Section 2 of [`docs/plan_report.tex`](docs/plan_report.tex) contains the verified
+dataset preparation, actual split counts, and train-only threshold after excluding
+`metal_nut/flip`. Its numbers come from the committed CSV/JSON results. It
+distinguishes implemented statistics and leakage checks from the planned training
+transforms; `src/data.py` is still empty. The histogram is available as a separate
+artifact to keep the report compact.
+
+With an existing LaTeX installation, build the full report from the repository root:
+
+```sh
+python -c "from pathlib import Path; Path('.tools').mkdir(exist_ok=True)"
+pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/plan_report.tex
+pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/plan_report.tex
+```
+
+Alternatively use `tectonic --outdir .tools docs/plan_report.tex`. Review by
+`jestersw` is required; compute placeholders in Section 4 belong to other tasks.
 
 ## Checks
 
