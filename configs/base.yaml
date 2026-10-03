@@ -32,7 +32,7 @@ eval:
   threshold: 0.5
   threshold_sweep: [0.3, 0.5, 0.7]
   small_defect_percentile: 33
-  small_defect_area_px: 1102.1100000000001
+  small_defect_area_px: 859.2800000000001
   small_detect_coverage: 0.25
   good_fp_min_component_px: 20
 output:
