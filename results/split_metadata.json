@@ -5,11 +5,11 @@
     0.15,
     0.15
   ],
-  "pool_images": 832,
+  "pool_images": 786,
   "split_sizes": {
-    "train": 582,
-    "val": 125,
-    "test": 125
+    "train": 550,
+    "val": 118,
+    "test": 118
   },
   "pool_composition": [
     {
@@ -17,36 +17,44 @@
       "defective": 109,
       "good": 109,
       "official_test_good": 23,
-      "sampled_train_good": 86
+      "sampled_train_good": 86,
+      "excluded_defective": 0
     },
     {
       "category": "hazelnut",
       "defective": 70,
       "good": 70,
       "official_test_good": 40,
-      "sampled_train_good": 30
+      "sampled_train_good": 30,
+      "excluded_defective": 0
     },
     {
       "category": "metal_nut",
-      "defective": 93,
-      "good": 93,
+      "defective": 70,
+      "good": 70,
       "official_test_good": 22,
-      "sampled_train_good": 71
+      "sampled_train_good": 48,
+      "excluded_defective": 23
     },
     {
       "category": "tile",
       "defective": 84,
       "good": 84,
       "official_test_good": 33,
-      "sampled_train_good": 51
+      "sampled_train_good": 51,
+      "excluded_defective": 0
     },
     {
       "category": "wood",
       "defective": 60,
       "good": 60,
       "official_test_good": 19,
-      "sampled_train_good": 41
+      "sampled_train_good": 41,
+      "excluded_defective": 0
     }
+  ],
+  "excluded_defect_types": [
+    "metal_nut/flip"
   ],
   "sampling": "NumPy default_rng; sorted categories and paths; without replacement",
   "splitting": "Two sklearn train_test_split calls, stratify=(category, defect_type)",
@@ -59,8 +67,8 @@
     "scikit-learn": "1.9.0"
   },
   "split_sha256": {
-    "train": "52076293f6951e87d7ef183a64a72fd71f833d35fdc52adf1d4ab7200d62e508",
-    "val": "e7dd4b03007b535d9dac43d0fa61c300ad0e0d690bfa06e28398bc52bc39cdc5",
-    "test": "9f5f2b034193ed88411544eb628240492ebe96b60a6e9615e7999095324f5d2a"
+    "train": "f1b8653d021888d8af6dac579414d7a526c9a98d936ef9bfa3d3b91ddb8677d7",
+    "val": "daa80d3e88b1e4afbffc059f0e5a01969f061135c548eb6fd1cd23af718b9f36",
+    "test": "fcc4a855798c1a292689d0139fc0d0d297ee0b81a7e6073d49dcdb9acb0fc350"
   }
 }

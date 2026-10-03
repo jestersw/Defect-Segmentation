@@ -1,16 +1,16 @@
 {
-  "small_defect_area_px": 1102.1100000000001,
+  "small_defect_area_px": 859.2800000000001,
   "percentile": 33,
   "percentile_method": "linear",
   "comparison": "area < small_defect_area_px",
   "image_size": 512,
   "connectivity": 2,
   "resize": "cv2.INTER_NEAREST",
-  "train_images": 582,
-  "train_components": 468,
+  "train_images": 550,
+  "train_components": 449,
   "split_sha256": {
-    "train": "52076293f6951e87d7ef183a64a72fd71f833d35fdc52adf1d4ab7200d62e508",
-    "val": "e7dd4b03007b535d9dac43d0fa61c300ad0e0d690bfa06e28398bc52bc39cdc5",
-    "test": "9f5f2b034193ed88411544eb628240492ebe96b60a6e9615e7999095324f5d2a"
+    "train": "f1b8653d021888d8af6dac579414d7a526c9a98d936ef9bfa3d3b91ddb8677d7",
+    "val": "daa80d3e88b1e4afbffc059f0e5a01969f061135c548eb6fd1cd23af718b9f36",
+    "test": "fcc4a855798c1a292689d0139fc0d0d297ee0b81a7e6073d49dcdb9acb0fc350"
   }
 }
