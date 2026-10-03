@@ -1,0 +1,212 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\setlist{nosep,leftmargin=*}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\newcommand{\tbd}[1]{\textcolor{red}{[TBD: #1]}}
+
+\title{\textbf{Industrial Defect Segmentation on MVTec AD}\\[2pt]\large Project Plan --- Computer Vision 2026}
+\author{jestersw (team lead) \and moonshine1l \and psandersi \and AigulFar}
+\date{6 October 2026\\[2pt]\small Repository: \url{https://github.com/jestersw/Defect-Segmentation}}
+
+\begin{document}
+\maketitle
+
+\section{Project Scope}
+
+\textbf{Objective.} We segment surface defects such as cracks, scratches, holes and other damaged regions on industrial objects from the MVTec AD dataset, producing a pixel-level defect mask for every image.
+
+\textbf{Research question.} \emph{Does replacing the binary cross-entropy (BCE) loss with a combined Dice + Focal loss improve the recall of small defects in a U-Net segmentation model, without a large drop in precision?}
+
+\textbf{Motivation and hypothesis.} Defects usually occupy a small fraction of the image, so the BCE loss is dominated by the many easy background pixels and tiny defects contribute little to the gradient. The Dice loss measures overlap and is insensitive to the foreground/background imbalance, while the Focal loss down-weights easy pixels. We therefore expect the combined loss to recover more small defects, at the risk of more false-positive pixels.
+
+\textbf{Exact setting.}
+\begin{itemize}
+  \item Task: binary semantic segmentation, defect (1) vs.\ background (0); all defect types of a category are merged into one class.
+  \item Categories: \texttt{tile}, \texttt{hazelnut}, \texttt{wood}, \texttt{metal\_nut}, \texttt{capsule}.
+  \item Model: U-Net with a ResNet34 encoder pretrained on ImageNet.
+  \item Compared conditions: baseline (BCE) vs.\ condition B (Dice + Focal); the loss is the only changed factor.
+  \item Ablation: input resolution $256$ vs.\ $512$, plus a threshold sensitivity curve.
+\end{itemize}
+
+\textbf{Out of scope.} Unsupervised anomaly detection without masks, multi-class defect-type segmentation, and the design of new architectures.
+
+\section{Dataset Preparation}
+
+\textbf{Dataset.} MVTec AD~\cite{mvtec} contains high-resolution images of 15 object and texture categories with pixel-precise ground-truth masks for defective images. It is distributed under the CC BY-NC-SA 4.0 license and is used here for non-commercial educational purposes only. We use five categories that contain cracks, scratches or other surface damage (Table~\ref{tab:data}). The data is obtained from the Kaggle mirror \url{https://www.kaggle.com/datasets/ipythonx/mvtec-ad}, which preserves the original folder structure; all file counts were verified against the original paper by \texttt{scripts/dataset\_stats.py}.
+
+\textbf{Why we re-split.} The official MVTec AD training set contains only defect-free images, and masks exist only in the official test set. Since we train a supervised segmentation model, we build our own split from the official data:
+\begin{itemize}
+  \item all defective images of the official test set of the five categories;
+  \item good images: the official \texttt{test/good} images plus a random sample of \texttt{train/good}, so that the number of good images equals the number of defective images per category. Good images teach the model not to predict defects on clean surfaces.
+\end{itemize}
+The defect type \texttt{metal\_nut/flip} (23 images) is excluded: its masks cover about 48\% of the image, i.e.\ the whole object, so it represents a global orientation anomaly rather than a localized surface defect and would inflate overlap metrics.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrrr}
+\toprule
+ & \multicolumn{3}{c}{Official MVTec AD} & & \multicolumn{3}{c}{Our split (70/15/15)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){6-8}
+Category & Train good & Test good & Test defect & Pool & Train & Val & Test \\
+\midrule
+capsule    & 219 & 23 & 109 & 218 & 152 & 34 & 32 \\
+hazelnut   & 391 & 40 & 70  & 140 & 99  & 20 & 21 \\
+metal\_nut & 220 & 22 & 93 (70$^{*}$) & 140 & 97 & 21 & 22 \\
+tile       & 230 & 33 & 84  & 168 & 117 & 25 & 26 \\
+wood       & 247 & 19 & 60  & 120 & 85  & 18 & 17 \\
+\midrule
+Total      & 1307 & 137 & 416 (393) & 786 & 550 & 118 & 118 \\
+\bottomrule
+\end{tabular}
+\caption{Official MVTec AD counts~\cite{mvtec} (verified on the downloaded data) and our split. Pool = used defective images + an equal number of good images. $^{*}$23 \texttt{flip} images excluded. Split counts are produced by \texttt{scripts/make\_split.py} and stored in \texttt{results/split\_summary.csv}.}
+\label{tab:data}
+\end{table}
+
+\textbf{Split procedure.} The pool is split $70/15/15$ into train/validation/test, stratified by (category, defect type) for defective images and by category for good images, with a fixed seed of $42$. The five categories contain 23 defect types (22 after the exclusion); stratifying by defect type ensures that every type appears in all three splits. The split is stored once in \texttt{splits/\{train,val,test\}.txt} and reused in all experiments.
+
+\textbf{Leakage prevention.}
+\begin{itemize}
+  \item Each image path appears in exactly one split; exact duplicates across splits are rejected by an MD5 check.
+  \item The test split is used only for the final evaluation of each condition; checkpoint selection, early stopping and threshold tuning use the validation split.
+  \item Normalisation uses ImageNet statistics, so no statistics are computed on validation or test data.
+  \item The split script refuses to overwrite committed split files unless explicitly forced, and SHA-256 hashes of the split files are stored in \texttt{results/split\_metadata.json} and checked in CI.
+\end{itemize}
+
+\textbf{Preprocessing.} Images are resized to $512\times512$ ($256\times256$ in the ablation) with bilinear interpolation; masks are resized with nearest-neighbour interpolation and binarised. Images are normalised with ImageNet mean and standard deviation.
+
+\textbf{Augmentation (train only).} Horizontal and vertical flips, $90^\circ$ rotations, and mild brightness and contrast changes. These transformations do not change whether a pixel is defective, so masks stay valid. No augmentation is applied to validation or test data.
+
+\textbf{Defect-size statistics.} For every ground-truth mask we extract connected components at $512\times512$ and report their area distribution. A component is called \emph{small} if its area is below the 33rd percentile of training component areas, which is \tbd{value in pixels, \% of the image} (computed on the train split only by \texttt{scripts/dataset\_stats.py}).
+
+\section{Experimental Plan}
+
+\subsection{Compared conditions}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lXX}
+\toprule
+ & Baseline & Condition B \\
+\midrule
+Model & U-Net, ResNet34 encoder, ImageNet weights & same \\
+Loss & $\mathcal{L}_{\mathrm{BCE}}$ & $0.5\,\mathcal{L}_{\mathrm{Dice}} + 0.5\,\mathcal{L}_{\mathrm{Focal}}$ ($\gamma=2$, $\alpha=0.25$) \\
+Data, resolution, augmentation & split of Section 2, $512\times512$ & same \\
+Optimisation & AdamW, lr $10^{-4}$, wd $10^{-4}$, cosine schedule, batch 8, $\le 60$ epochs & same \\
+Model selection & early stopping on validation Dice, patience 10 & same \\
+Threshold & $0.5$ & same \\
+\bottomrule
+\end{tabularx}
+\caption{Experimental conditions. Only the loss differs.}
+\end{table}
+
+With predicted probabilities $p_i$ and ground truth $g_i\in\{0,1\}$ over pixels $i$:
+\begin{align*}
+\mathcal{L}_{\mathrm{BCE}} &= -\frac{1}{N}\sum_i \big[g_i\log p_i + (1-g_i)\log(1-p_i)\big],\\
+\mathcal{L}_{\mathrm{Dice}} &= 1 - \frac{2\sum_i p_i g_i + \varepsilon}{\sum_i p_i + \sum_i g_i + \varepsilon},\qquad
+\mathcal{L}_{\mathrm{Focal}} = -\frac{1}{N}\sum_i \alpha_t\,(1-p_{t,i})^{\gamma}\log p_{t,i},
+\end{align*}
+where $p_{t,i}=p_i$ if $g_i=1$ and $1-p_i$ otherwise. BCE weights every pixel equally, Dice depends only on the overlap with the defect, and Focal reduces the weight of pixels that are already classified confidently.
+
+\textbf{Training strategy.} Both conditions fine-tune the full network (encoder and decoder) starting from ImageNet weights, with identical schedule and hyperparameters. If compute allows, each condition is trained with 3 seeds and reported as mean $\pm$ standard deviation; otherwise one seed is used and this is stated in the results.
+
+\textbf{Ablation and sensitivity.}
+\begin{itemize}
+  \item Resolution: the better condition is retrained at $256\times256$. Hypothesis: small defects shrink to a few pixels and their recall drops.
+  \item Threshold: masks are binarised at $0.3$, $0.5$ and $0.7$ to show the precision--recall trade-off.
+\end{itemize}
+
+\textbf{Decision rule.} Condition B answers the research question positively if small-defect recall improves over the baseline while pixel precision and the good-image false-positive rate do not degrade substantially.
+
+\subsection{Evaluation metrics}
+
+Let $P$ and $G$ be the predicted and ground-truth defect pixel sets of an image.
+\begin{itemize}
+  \item \textbf{Dice} $=\dfrac{2|P\cap G|}{|P|+|G|}$ and \textbf{IoU} $=\dfrac{|P\cap G|}{|P\cup G|}$, averaged over defective test images. They measure mask quality; on good images $G=\emptyset$, so these metrics are undefined there and good images are evaluated by the false-positive rate instead.
+  \item \textbf{Pixel precision} $=\dfrac{TP}{TP+FP}$ and \textbf{pixel recall} $=\dfrac{TP}{TP+FN}$, aggregated over all test pixels. They show which kind of error dominates.
+  \item \textbf{Small-defect recall}: share of small ground-truth components (Section 2) of which at least $25\%$ of the pixels are predicted as defect. This metric answers the research question directly, because large defects dominate Dice and pixel recall.
+  \item \textbf{Good-image false-positive rate (FPR)}: share of good test images where the prediction contains a connected component of at least 20 pixels. It guards against a model that wins recall by predicting defects everywhere.
+  \item \textbf{Runtime}: training time per epoch, inference time per image (after warm-up), and peak GPU memory.
+\end{itemize}
+Results are reported overall and per category in one main comparison table, together with the ablation table, the threshold curve and the runtime comparison.
+
+\section{Implementation Plan}
+
+\textbf{Pipeline.}
+\begin{enumerate}
+  \item Download the five categories and compute dataset statistics.
+  \item Build the stratified split and run leakage checks.
+  \item PyTorch \texttt{Dataset}/\texttt{DataLoader} with preprocessing and train-only augmentation.
+  \item Build the U-Net model and train it with the configured loss; log losses and validation Dice per epoch; keep the best checkpoint.
+  \item Evaluate the best checkpoint on the test split and save metrics as JSON.
+  \item Export predictions for failure analysis and run the ablation and runtime measurements.
+\end{enumerate}
+
+\textbf{Repository structure.}
+\begin{center}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{ll}
+\toprule
+File & Responsibility \\
+\midrule
+\texttt{scripts/download\_data.py}, \texttt{scripts/dataset\_stats.py} & data acquisition and statistics \\
+\texttt{scripts/make\_split.py}, \texttt{splits/*.txt} & fixed split and leakage checks \\
+\texttt{src/data.py} & dataset, preprocessing, augmentation \\
+\texttt{src/model.py}, \texttt{src/train.py} & model and training loop \\
+\texttt{src/losses.py} & BCE and Dice + Focal losses \\
+\texttt{src/metrics.py}, \texttt{src/evaluate.py} & metrics and evaluation \\
+\texttt{src/profiling.py} & runtime and memory measurement \\
+\texttt{configs/base.yaml} & all hyperparameters \\
+\texttt{tests/} & unit tests (metrics, config, split builder, leakage) \\
+\texttt{.github/workflows/ci.yml} & CI: lint and tests on every push and PR \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Interfaces.} A dataset item is \texttt{(image, mask)} with shapes $[3,H,W]$ and $[1,H,W]$, mask values in $\{0,1\}$; the model returns logits of shape $[B,1,H,W]$; \texttt{evaluate(model, loader, threshold)} returns a dictionary with \texttt{dice}, \texttt{iou}, \texttt{precision}, \texttt{recall}, \texttt{small\_recall} and \texttt{good\_fpr}. All hyperparameters are read from \texttt{configs/base.yaml}; condition B differs from the baseline config only in the \texttt{loss} field.
+
+\textbf{Libraries and resources.} Python 3.11, PyTorch, \texttt{segmentation\_models\_pytorch} (U-Net, ResNet34 ImageNet weights, Dice and Focal losses), Albumentations, OpenCV, scikit-image (connected components), NumPy, PyYAML and Matplotlib.
+
+\textbf{Reproducibility.} Fixed seeds for Python, NumPy and PyTorch, deterministic cuDNN, the configuration saved next to every run, and a README with exact setup, download, training and evaluation commands. Datasets and checkpoints are not stored in git.
+
+\textbf{Continuous integration.} A GitHub Actions workflow runs on every push and pull request: it installs CPU PyTorch and the project requirements, lints the code with Ruff and runs unit tests with pytest. The tests use synthetic masks and need neither the dataset nor a GPU; they cover the metric implementations (Dice, IoU, pixel counts, small-defect recall, good-image false-positive rate), the configuration schema, the split builder, and the consistency of the committed split files with their recorded hashes. Merging into \texttt{main} requires a passing CI run and one approval.
+
+\textbf{Compute.} \tbd{GPU model and platform}; measured training step time of \tbd{s/step at $512^2$} gives an estimated \tbd{min} per epoch and \tbd{h} per full run.
+
+\section{Team Responsibilities}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Member & Responsibility \\
+\midrule
+jestersw (lead) \\ t.chertykovtceva@innopolis.university
+& Research question and experimental design; metric definitions and evaluation module; comparison tables; repository integration and reproducibility; reports and demo. \\
+moonshine1l \\i.napalkova@innopolis.university  & Dataset acquisition and category selection; stratified split with leakage checks; preprocessing and augmentation; defect-size statistics. \\
+psandersi \\ d.galushko@innopolis.university & Baseline training pipeline (U-Net + BCE): training loop, checkpoints, curve logging; training and inference time measurement. \\
+AigulFar \\ a.farkhetdinova@innopolis.university & Condition B (Dice + Focal) under identical settings; resolution ablation and threshold sensitivity; runtime and memory comparison. \\
+All members & At least one analysed failure case each; peer review of pull requests. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\textbf{Workflow.} All changes go through pull requests with team lead approval. 
+
+\begin{thebibliography}{9}
+\bibitem{mvtec} P.~Bergmann, M.~Fauser, D.~Sattlegger, C.~Steger. MVTec AD --- A Comprehensive Real-World Dataset for Unsupervised Anomaly Detection. \emph{CVPR}, 2019.
+\end{thebibliography}
+
+\end{document}
