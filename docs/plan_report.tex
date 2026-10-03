@@ -49,6 +49,14 @@
   \item good images: the official \texttt{test/good} images plus a random sample of \texttt{train/good}, so that the number of good images equals the number of defective images per category. Good images teach the model not to predict defects on clean surfaces.
 \end{itemize}
 The defect type \texttt{metal\_nut/flip} (23 images) is excluded: its masks cover about 48\% of the image, i.e.\ the whole object, so it represents a global orientation anomaly rather than a localized surface defect and could dominate overlap metrics. The exclusion is configured in \texttt{data.exclude\_defect\_types} and is applied before balancing good images and generating splits. Inventory checks and descriptive statistics still cover all original masks; the training threshold uses the filtered split. The resulting pool contains 393 defective images and 393 good images (all 137 official test good images plus 256 sampled official training good images).
+\textbf{Dataset.} MVTec AD~\cite{mvtec} contains high-resolution images of 15 object and texture categories with pixel-precise ground-truth masks for defective images. It is distributed under the CC BY-NC-SA 4.0 license and is used here for non-commercial educational purposes only. We use five categories that contain cracks, scratches or other surface damage (Table~\ref{tab:data}). The data is obtained from the Kaggle mirror \url{https://www.kaggle.com/datasets/ipythonx/mvtec-ad}, which preserves the original folder structure; all file counts were verified against the original paper by \texttt{scripts/dataset\_stats.py}.
+
+\textbf{Why we re-split.} The official MVTec AD training set contains only defect-free images, and masks exist only in the official test set. Since we train a supervised segmentation model, we build our own split from the official data:
+\begin{itemize}
+  \item all defective images of the official test set of the five categories;
+  \item good images: the official \texttt{test/good} images plus a random sample of \texttt{train/good}, so that the number of good images equals the number of defective images per category. Good images teach the model not to predict defects on clean surfaces.
+\end{itemize}
+The defect type \texttt{metal\_nut/flip} (23 images) is excluded: its masks cover about 48\% of the image, i.e.\ the whole object, so it represents a global orientation anomaly rather than a localized surface defect and would inflate overlap metrics.
 
 \begin{table}[h]
 \centering
@@ -88,6 +96,21 @@ Total      & 1307 & 137 & 416 (393) & 786 & 550 & 118 & 118 \\
 \textbf{Augmentation (train only, planned).} Horizontal and vertical flips and $90^\circ$ rotations will be applied jointly to images and masks. Mild brightness and contrast changes will affect images only. Validation and test will use deterministic preprocessing without augmentation.
 
 \textbf{Defect-size statistics.} Across all 416 original masks, the descriptive statistics contain 638 connected components at $512\times512$, extracted with 8-connectivity. Areas range from 1 to 127,709 pixels; no defect mask becomes empty after resizing. A component is called \emph{small} if its area is below the 33rd percentile of training component areas: $859.28$ pixels, approximately $0.3278\%$ of the image. This threshold is computed with NumPy linear interpolation from the 449 components in the 550 training images only, with no contribution from validation or test masks. The full-precision value and split hashes are saved in \texttt{results/small\_defect\_threshold.json}; the same value is used in \texttt{configs/base.yaml}. The exclusion rule is recorded in \texttt{results/split\_metadata.json}. The CSV and histogram describe all original defect types, including \texttt{flip}, whereas the threshold uses training components exclusively and excludes \texttt{flip}.
+\textbf{Split procedure.} The pool is split $70/15/15$ into train/validation/test, stratified by (category, defect type) for defective images and by category for good images, with a fixed seed of $42$. The five categories contain 23 defect types (22 after the exclusion); stratifying by defect type ensures that every type appears in all three splits. The split is stored once in \texttt{splits/\{train,val,test\}.txt} and reused in all experiments.
+
+\textbf{Leakage prevention.}
+\begin{itemize}
+  \item Each image path appears in exactly one split; exact duplicates across splits are rejected by an MD5 check.
+  \item The test split is used only for the final evaluation of each condition; checkpoint selection, early stopping and threshold tuning use the validation split.
+  \item Normalisation uses ImageNet statistics, so no statistics are computed on validation or test data.
+  \item The split script refuses to overwrite committed split files unless explicitly forced, and SHA-256 hashes of the split files are stored in \texttt{results/split\_metadata.json} and checked in CI.
+\end{itemize}
+
+\textbf{Preprocessing.} Images are resized to $512\times512$ ($256\times256$ in the ablation) with bilinear interpolation; masks are resized with nearest-neighbour interpolation and binarised. Images are normalised with ImageNet mean and standard deviation.
+
+\textbf{Augmentation (train only).} Horizontal and vertical flips, $90^\circ$ rotations, and mild brightness and contrast changes. These transformations do not change whether a pixel is defective, so masks stay valid. No augmentation is applied to validation or test data.
+
+\textbf{Defect-size statistics.} For every ground-truth mask we extract connected components at $512\times512$ and report their area distribution. A component is called \emph{small} if its area is below the 33rd percentile of training component areas, which is \tbd{value in pixels, \% of the image} (computed on the train split only by \texttt{scripts/dataset\_stats.py}).
 
 \section{Experimental Plan}
 
