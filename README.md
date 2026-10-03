@@ -74,11 +74,57 @@ areas are measured after resizing, without augmentation. Empty good-image masks
 have zero components and blank area statistics. The histogram and CSV describe
 all available masks; they do not set the evaluation threshold.
 
+## Fixed train/validation/test split (issue #7)
+
+The shared manifests are `splits/train.txt`, `splits/val.txt`, and `splits/test.txt`.
+Use these files for every experiment. This custom split defines the supervised
+evaluation protocol for the project.
+
+The pool contains all 416 defective images from official `test`, all 137 official
+`test/good` images, and 279 sampled official `train/good` images. Each category
+has equal good and defective counts in the pool (832 images overall).
+
+```sh
+python scripts/make_split.py
+```
+
+The script reads seed 42 and ratios `[0.70, 0.15, 0.15]` from `configs/base.yaml`.
+It sorts categories and image paths before sampling good images without
+replacement using NumPy `default_rng`. Two scikit-learn `train_test_split` calls
+use `stratify=(category, defect_type)` and `random_state=42`: first 70/30, then a
+50/50 split of the held-out 30%. Good images form one stratum per category.
+Rounding within strata means individual split/category counts can differ slightly
+between good and defective images.
+
+| Split | Defective | Good | Total |
+| --- | ---: | ---: | ---: |
+| Train | 291 | 291 | 582 |
+| Validation | 64 | 61 | 125 |
+| Test | 61 | 64 | 125 |
+
+Before writing outputs, the script checks that every pooled path appears exactly
+once and that no byte-identical images (MD5) occur in different splits. Strata
+with fewer than seven images produce a warning; an impossible stratification
+fails without silently dropping or merging groups. All actual strata have at
+least eight images. Two runs on the real dataset produced byte-identical manifests
+and reports, and both leakage checks passed.
+
+[`results/split_summary.csv`](results/split_summary.csv) contains counts by category
+and split. [`results/split_metadata.json`](results/split_metadata.json) records the
+pool composition, seed, ratios, library versions, and SHA-256 manifest hashes.
+Manifests use UTF-8 with LF line endings on all platforms. scikit-learn is pinned
+to 1.9.0; this run used NumPy 2.1.3 and Python 3.13 (CI uses Python 3.11).
+
+Identical reruns are allowed. A different split is rejected unless `--overwrite`
+is supplied deliberately; changing a shared split requires recalculating the
+train-only threshold and rerunning the experiments. To generate an experimental
+split separately, use `--config`, `--splits-dir`, and `--output` with separate paths.
+
 ## Train-only small-defect threshold
 
 The fixed custom split is tracked in [issue #7](https://github.com/jestersw/Defect-Segmentation/issues/7).
 The official training set contains only good images. Do not use it or the entire
-dataset to estimate the threshold. Once all three agreed manifests exist, run:
+dataset to estimate the threshold. To reproduce the threshold for the shared split, run:
 
 ```sh
 python scripts/dataset_stats.py --splits-dir splits
@@ -94,8 +140,10 @@ and defect components in the training split.
 components only**, NumPy's linear interpolation method, and SHA-256 hashes of all
 three manifests. Per the shared protocol, this step requires 512 × 512 masks.
 A small defect has `area < small_defect_area_px` (strict inequality, no rounding).
-Record the resulting value in issues #6 and #1 and in `eval.small_defect_area_px`
-after the split is finalized. Without `--splits-dir`, no threshold is estimated;
+The shared train split contains 468 defect components. Its 33rd percentile is
+approximately **1,102.11 pixels**, recorded at full precision in the JSON and
+`eval.small_defect_area_px`. This value is ready to report in issues #6 and #1.
+Without `--splits-dir`, no threshold is estimated;
 any threshold file from an earlier run is not refreshed.
 
 ## Verified dataset results
@@ -112,9 +160,9 @@ No defect mask became entirely empty after resizing. See
 [`results/dataset_verification.json`](results/dataset_verification.json), and
 [`results/defect_area_hist.png`](results/defect_area_hist.png).
 
-These are descriptive results over all available images. The train-only 33rd
-percentile remains pending the fixed manifests from issue #7;
-`eval.small_defect_area_px` is still unset.
+These are descriptive results over all available images. The evaluation
+threshold comes exclusively from the shared training split; see
+[`results/small_defect_threshold.json`](results/small_defect_threshold.json).
 
 ## Checks
 
@@ -124,5 +172,6 @@ ruff check .
 python -m pytest -q
 ```
 
-Statistics tests use synthetic masks and temporary data; the full dataset is not
-needed in CI. The existing split tests skip until the project manifests exist.
+Statistics and split-generator tests use synthetic masks and temporary data;
+the full dataset is not needed in CI. Manifest tests also verify the committed
+split files. Real-image MD5 checks run when generating the split and the threshold.

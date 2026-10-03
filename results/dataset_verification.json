@@ -7,7 +7,7 @@
   "components": 638,
   "count_differences": [],
   "masks_vanished_after_resize": 0,
-  "threshold_computed_in_this_run": false,
+  "threshold_computed_in_this_run": true,
   "versions": {
     "numpy": "2.1.3",
     "opencv": "4.13.0"
