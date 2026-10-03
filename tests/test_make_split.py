@@ -127,9 +127,26 @@ def test_committed_manifest_composition():
         pytest.skip("Project manifests have not been generated yet")
     manifests = {name: (repo / "splits" / f"{name}.txt").read_text().splitlines()
                  for name in ("train", "val", "test")}
-    assert [len(paths) for paths in manifests.values()] == [582, 125, 125]
+    assert [len(paths) for paths in manifests.values()] == [550, 118, 118]
     paths = [p for split in manifests.values() for p in split]
     counts = Counter((stratum(p)[0], stratum(p)[1] == "good") for p in paths)
+    assert not any(stratum(p) == ("metal_nut", "flip") for p in paths)
     for category, expected in {"tile": 84, "hazelnut": 70, "wood": 60,
-                               "metal_nut": 93, "capsule": 109}.items():
+                               "metal_nut": 70, "capsule": 109}.items():
         assert counts[category, True] == counts[category, False] == expected
+
+
+def test_excluded_defect_type_is_removed_and_rebalanced(dataset):
+    pool, composition = build_pool(dataset, ["tile", "wood"], 42, exclude=["tile/hole"])
+    assert not any(stratum(p) == ("tile", "hole") for p in pool)
+    tile = next(row for row in composition if row["category"] == "tile")
+    assert tile["defective"] == tile["good"] == 8
+    assert tile["excluded_defective"] == 8
+    counts = Counter((stratum(p)[0], stratum(p)[1] == "good") for p in pool)
+    assert counts["tile", True] == counts["tile", False] == 8
+    assert counts["wood", True] == counts["wood", False] == 16
+
+
+def test_exclusion_of_unknown_category_fails(dataset):
+    with pytest.raises(ValueError, match="unknown categories"):
+        build_pool(dataset, ["tile", "wood"], 42, exclude=["bottle/broken_large"])

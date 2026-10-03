@@ -23,16 +23,22 @@ def stratum(path):
     return (parts[0], parts[2])
 
 
-def build_pool(root, categories, seed):
+def build_pool(root, categories, seed, exclude=()):
     """Include all official test images, then sample train/good to balance categories."""
     root = Path(root)
     if not categories or len(categories) != len(set(categories)):
         raise ValueError("Categories must be nonempty and unique")
+    exclude = set(exclude)
+    unknown = {item for item in exclude if item.split("/")[0] not in set(categories)}
+    if unknown:
+        raise ValueError(f"Excluded defect types refer to unknown categories: {sorted(unknown)}")
     rng = np.random.default_rng(seed)
     pool, composition = [], []
     for category in sorted(categories):
         base = root / category
-        defective = sorted(p for p in base.glob("test/*/*.png") if p.parent.name != "good")
+        candidates = sorted(p for p in base.glob("test/*/*.png") if p.parent.name != "good")
+        defective = [p for p in candidates if f"{category}/{p.parent.name}" not in exclude]
+        excluded = len(candidates) - len(defective)
         test_good = sorted(base.glob("test/good/*.png"))
         train_good = sorted(base.glob("train/good/*.png"))
         if not defective:
@@ -51,6 +57,7 @@ def build_pool(root, categories, seed):
         composition.append({
             "category": category, "defective": len(defective), "good": len(defective),
             "official_test_good": len(test_good), "sampled_train_good": needed,
+            "excluded_defective": excluded,
         })
     return sorted(pool), composition
 
@@ -122,7 +129,8 @@ def summarize_splits(splits, categories):
     return rows
 
 
-def save_outputs(splits, rows, composition, splits_dir, results_dir, seed, ratios, overwrite=False):
+def save_outputs(splits, rows, composition, splits_dir, results_dir, seed, ratios, overwrite=False,
+                 exclude=()):
     manifests = {name: "\n".join(splits[name]) + "\n" for name in NAMES}
     for name, content in manifests.items():
         target = splits_dir / f"{name}.txt"
@@ -138,6 +146,7 @@ def save_outputs(splits, rows, composition, splits_dir, results_dir, seed, ratio
         "seed": seed, "ratios": list(ratios), "pool_images": sum(map(len, splits.values())),
         "split_sizes": {name: len(splits[name]) for name in NAMES},
         "pool_composition": composition,
+        "excluded_defect_types": sorted(exclude),
         "sampling": "NumPy default_rng; sorted categories and paths; without replacement",
         "splitting": "Two sklearn train_test_split calls, stratify=(category, defect_type)",
         "leakage_checks": {"paths_disjoint": True, "cross_split_md5_disjoint": True},
@@ -171,12 +180,15 @@ def main():
     output = args.output or REPO / config["output"]["results_dir"]
     categories, seed = config["data"]["categories"], config["seed"]
     ratios = config["data"]["split_ratios"]
-    pool, composition = build_pool(root, categories, seed)
+    exclude = config["data"].get("exclude_defect_types", [])
+    pool, composition = build_pool(root, categories, seed, exclude)
     splits = split_pool(pool, seed, ratios)
     print(f"Pool: {len(pool)} images. Checking paths and MD5 hashes...", flush=True)
     validate_splits(splits, pool, root)
     rows = summarize_splits(splits, categories)
-    save_outputs(splits, rows, composition, splits_dir, output, seed, ratios, args.overwrite)
+    save_outputs(
+        splits, rows, composition, splits_dir, output, seed, ratios, args.overwrite, exclude
+    )
     for name in NAMES:
         print(f"{name}: {len(splits[name])}")
     print(f"Leakage checks passed. Saved manifests to {splits_dir} and summary to {output}.")
