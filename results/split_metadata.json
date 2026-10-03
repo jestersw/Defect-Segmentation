@@ -1,0 +1,66 @@
+{
+  "seed": 42,
+  "ratios": [
+    0.7,
+    0.15,
+    0.15
+  ],
+  "pool_images": 832,
+  "split_sizes": {
+    "train": 582,
+    "val": 125,
+    "test": 125
+  },
+  "pool_composition": [
+    {
+      "category": "capsule",
+      "defective": 109,
+      "good": 109,
+      "official_test_good": 23,
+      "sampled_train_good": 86
+    },
+    {
+      "category": "hazelnut",
+      "defective": 70,
+      "good": 70,
+      "official_test_good": 40,
+      "sampled_train_good": 30
+    },
+    {
+      "category": "metal_nut",
+      "defective": 93,
+      "good": 93,
+      "official_test_good": 22,
+      "sampled_train_good": 71
+    },
+    {
+      "category": "tile",
+      "defective": 84,
+      "good": 84,
+      "official_test_good": 33,
+      "sampled_train_good": 51
+    },
+    {
+      "category": "wood",
+      "defective": 60,
+      "good": 60,
+      "official_test_good": 19,
+      "sampled_train_good": 41
+    }
+  ],
+  "sampling": "NumPy default_rng; sorted categories and paths; without replacement",
+  "splitting": "Two sklearn train_test_split calls, stratify=(category, defect_type)",
+  "leakage_checks": {
+    "paths_disjoint": true,
+    "cross_split_md5_disjoint": true
+  },
+  "versions": {
+    "numpy": "2.1.3",
+    "scikit-learn": "1.9.0"
+  },
+  "split_sha256": {
+    "train": "52076293f6951e87d7ef183a64a72fd71f833d35fdc52adf1d4ab7200d62e508",
+    "val": "e7dd4b03007b535d9dac43d0fa61c300ad0e0d690bfa06e28398bc52bc39cdc5",
+    "test": "9f5f2b034193ed88411544eb628240492ebe96b60a6e9615e7999095324f5d2a"
+  }
+}

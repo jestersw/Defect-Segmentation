@@ -1,0 +1,16 @@
+{
+  "small_defect_area_px": 1102.1100000000001,
+  "percentile": 33,
+  "percentile_method": "linear",
+  "comparison": "area < small_defect_area_px",
+  "image_size": 512,
+  "connectivity": 2,
+  "resize": "cv2.INTER_NEAREST",
+  "train_images": 582,
+  "train_components": 468,
+  "split_sha256": {
+    "train": "52076293f6951e87d7ef183a64a72fd71f833d35fdc52adf1d4ab7200d62e508",
+    "val": "e7dd4b03007b535d9dac43d0fa61c300ad0e0d690bfa06e28398bc52bc39cdc5",
+    "test": "9f5f2b034193ed88411544eb628240492ebe96b60a6e9615e7999095324f5d2a"
+  }
+}

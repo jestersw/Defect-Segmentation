@@ -1,0 +1,6 @@
+category,train_defective,train_good,val_defective,val_good,test_defective,test_good
+capsule,76,76,18,16,15,17
+hazelnut,50,49,10,10,10,11
+metal_nut,64,65,14,14,15,14
+tile,58,59,13,12,13,13
+wood,43,42,9,9,8,9

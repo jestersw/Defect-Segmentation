@@ -1,0 +1,6 @@
+category,train_good,test_good,test_defective,masks,expected_train_good,expected_test_good,expected_test_defective,expected_masks,matches_expected
+tile,230,33,84,84,230,33,84,84,True
+hazelnut,391,40,70,70,391,40,70,70,True
+wood,247,19,60,60,247,19,60,60,True
+metal_nut,220,22,93,93,220,22,93,93,True
+capsule,219,23,109,109,219,23,109,109,True
