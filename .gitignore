@@ -6,3 +6,8 @@ __pycache__/
 wandb/
 mlruns/
 .venv/
+.tools/
+.pytest_cache/
+.ruff_cache/
+.kaggle/
+kaggle.json
