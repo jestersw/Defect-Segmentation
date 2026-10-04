@@ -12,6 +12,8 @@
 \setlength{\parskip}{4pt}
 \setlength{\parindent}{0pt}
 \newcommand{\tbd}[1]{\textcolor{red}{[TBD: #1]}}
+\newcommand{\teamcontacts}{}
+\IfFileExists{team_private.tex}{\input{team_private.tex}}{\IfFileExists{docs/team_private.tex}{\input{docs/team_private.tex}}{}}
 
 \title{\textbf{Industrial Defect Segmentation on MVTec AD}\\[2pt]\large Project Plan --- Computer Vision 2026}
 \author{jestersw (team lead) \and moonshine1l \and psandersi \and AigulFar}
@@ -204,6 +206,44 @@ $256^2$ & 1.91 & 2.25 & 2.19 & 2.19 \\
 \end{center}
 
 These projections cover training steps only and exclude data loading, augmentation, validation and checkpoint I/O. One 60-epoch run at $512^2$ therefore takes about 9\,h. We train both conditions at $256^2$ (at most about 2.2\,h per run) and use $512^2$ only for the single ablation run; early stopping is expected to shorten runs.
+
+\section{Team Responsibilities}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Member & Responsibility \\
+\midrule
+jestersw (lead) & Research question and experimental design; metric definitions and evaluation module; comparison tables; MLOps: CI pipeline with automated tests and branch protection; repository integration and reproducibility; reports and demo. \\
+moonshine1l & Dataset acquisition and category selection; stratified split with leakage checks; preprocessing and augmentation; defect-size statistics. \\
+psandersi & Baseline training pipeline (U-Net + BCE): training loop, checkpoints, curve logging; CPU compute measurement. \\
+AigulFar & Condition B (Dice + Focal) under identical settings; resolution ablation and threshold sensitivity; runtime and memory comparison. \\
+All members & At least one analysed failure case each; peer review of pull requests. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\teamcontacts
+
+\textbf{Workflow.} All changes go through pull requests that require a passing CI run and one approval. Review pairs are moonshine1l $\leftrightarrow$ jestersw and psandersi $\leftrightarrow$ AigulFar, so every member can explain a neighbouring part of the project.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lXl}
+\toprule
+Date & Stage & Main owners \\
+\midrule
+13 Oct & First working model: dataset code, baseline results & moonshine1l, psandersi, jestersw \\
+20 Oct & Second approach: Dice + Focal working & AigulFar \\
+27 Oct & Progress check: preliminary comparison, remaining experiments & jestersw, AigulFar \\
+3 Nov & Results: final metrics, runtime, $\ge 3$ failure cases & all \\
+10 Nov & Final submission and demo & jestersw, all \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \begin{thebibliography}{9}
 \bibitem{mvtec} P.~Bergmann, M.~Fauser, D.~Sattlegger, C.~Steger. MVTec AD --- A Comprehensive Real-World Dataset for Unsupervised Anomaly Detection. \emph{CVPR}, 2019.

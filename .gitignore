@@ -11,3 +11,4 @@ mlruns/
 .ruff_cache/
 .kaggle/
 kaggle.json
+docs/team_private.tex
