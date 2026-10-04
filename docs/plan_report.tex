@@ -205,26 +205,6 @@ $256^2$ & 1.91 & 2.25 & 2.19 & 2.19 \\
 
 These projections cover training steps only and exclude data loading, augmentation, validation and checkpoint I/O. One 60-epoch run at $512^2$ therefore takes about 9\,h. We train both conditions at $256^2$ (at most about 2.2\,h per run) and use $512^2$ only for the single ablation run; early stopping is expected to shorten runs.
 
-\section{Team Responsibilities}
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabularx}{\linewidth}{lX}
-\toprule
-Member & Responsibility \\
-\midrule
-jestersw (lead) \\ t.chertykovtceva@innopolis.university
-& Research question and experimental design; metric definitions and evaluation module; comparison tables; repository integration and reproducibility; reports and demo. \\
-moonshine1l \\i.napalkova@innopolis.university  & Dataset acquisition and category selection; stratified split with leakage checks; preprocessing and augmentation; defect-size statistics. \\
-psandersi \\ d.galushko@innopolis.university & Baseline training pipeline (U-Net + BCE): training loop, checkpoints, curve logging; training and inference time measurement. \\
-AigulFar \\ a.farkhetdinova@innopolis.university & Condition B (Dice + Focal) under identical settings; resolution ablation and threshold sensitivity; runtime and memory comparison. \\
-All members & At least one analysed failure case each; peer review of pull requests. \\
-\bottomrule
-\end{tabularx}
-\end{table}
-\textbf{Workflow.} All changes go through pull requests with team lead approval. 
-
 \begin{thebibliography}{9}
 \bibitem{mvtec} P.~Bergmann, M.~Fauser, D.~Sattlegger, C.~Steger. MVTec AD --- A Comprehensive Real-World Dataset for Unsupervised Anomaly Detection. \emph{CVPR}, 2019.
 \end{thebibliography}
