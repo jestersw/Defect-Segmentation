@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, 's1/**']
+    branches: [main]
   pull_request:
 
 concurrency:

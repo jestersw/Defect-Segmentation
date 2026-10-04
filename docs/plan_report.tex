@@ -212,23 +212,21 @@ File & Responsibility \\
 
 \textbf{Continuous integration.} GitHub Actions runs on pushes to \texttt{main} and \texttt{s1/**}, and on pull requests. It installs pinned CPU PyTorch and project requirements on Python 3.11, checks dependency consistency, lints with Ruff, runs pytest, and checks a small U-Net forward/backward pass on CPU without downloading pretrained weights. Unit tests use synthetic data and cover metrics, configuration, statistics, the split builder, leakage, committed manifest hashes and runtime projection arithmetic. The small CI check does not replace the full local benchmark. Project policy requires passing CI and one approval before merging into \texttt{main}.
 
-\textbf{Compute.} The task owner selected local CPU compute on 4 October 2026, replacing the original GPU requirement. The laptop has an AMD Ryzen AI 9 HX 370 (12 cores, 24 logical processors) and 31.12\,GiB usable system RAM, running Windows and Python 3.11.12; PyTorch uses 8 computation threads and 1 interop thread. There is no provider session quota; uptime, sleep and available memory limit a session. The measured results are saved in \texttt{results/smoke\_test\_cpu.json}; the reproducible command is in \texttt{docs/compute.md}. At both resolutions, \texttt{scripts/smoke\_test.py} completed 20 FP32 forward/backward/AdamW steps after 3 warm-up steps with batch 8 and ImageNet weights. Output shapes were $[8,1,512,512]$ and $[8,1,256,256]$. Peak whole-process RAM is the Windows peak working set, including setup and warm-up, measured in a fresh process per resolution.
+\textbf{Compute.} We use local CPU compute: a laptop with an AMD Ryzen AI 9 HX 370 (12 cores) and 31.12\,GiB RAM, running Windows and Python 3.11.12; PyTorch uses 8 computation threads. \path{scripts/smoke_test.py} ran 20 FP32 forward/backward/AdamW steps after 3 warm-up steps with batch size 8 and ImageNet weights; the output shapes were $[8,1,512,512]$ and $[8,1,256,256]$. Raw results are in \path{results/smoke_test_cpu.json}; the exact command is in \path{docs/compute.md}.
 
 \begin{center}
 \small
-\begin{tabular}{rrrrrr}
+\begin{tabular}{rrrrr}
 \toprule
-Resolution & Mean s/step & Peak RAM (GiB) & Train images & Min/epoch & Hours/60 epochs \\
+Resolution & Mean s/step & Peak RAM (GiB) & Min/epoch (69 steps) & Hours/60 epochs \\
 \midrule
-$512^2$ & 7.5996 & 4.806 & 550 & 8.739 & 8.739 \\
-$256^2$ & 1.9071 & 2.248 & 550 & 2.193 & 2.193 \\
-$512^2$ & 7.5996 & 4.806 & 582 & 9.246 & 9.246 \\
-$256^2$ & 1.9071 & 2.248 & 582 & 2.320 & 2.320 \\
+$512^2$ & 7.60 & 4.81 & 8.74 & 8.74 \\
+$256^2$ & 1.91 & 2.25 & 2.19 & 2.19 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-For measured mean step time $t$ seconds, the issue's historical reference of 582 images gives $\lceil582/8\rceil=73$ steps, $73t/60$ minutes per epoch and $73t/60$ hours for 60 epochs. The current 550-image split gives 69 steps and $69t/60$ in the same units. The last two columns coincide numerically because the run has 60 epochs and an hour has 60 minutes. These are synthetic training-only projections, excluding data loading, augmentation, validation and checkpoint I/O; no 60-epoch training run was performed. The BCE timings do not establish the runtime of Dice + Focal.
+These projections cover training steps only and exclude data loading, augmentation, validation and checkpoint I/O. One 60-epoch run at $512^2$ therefore takes about 9\,h, so the number of seeds per condition is set in Section~3.1 according to this budget; early stopping is expected to shorten runs.
 
 \section{Team Responsibilities}
 

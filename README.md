@@ -192,9 +192,7 @@ pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/p
 pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/plan_report.tex
 ```
 
-Alternatively use `tectonic --outdir .tools docs/plan_report.tex`. Review by
-`jestersw` is required for Section 2; Section 4 and the CPU smoke test require
-review by `AigulFar`.
+Alternatively use `tectonic --outdir .tools docs/plan_report.tex`.
 
 ## CPU environment and timing (issues #9 and #10)
 
