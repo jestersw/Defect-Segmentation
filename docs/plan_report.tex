@@ -137,18 +137,20 @@ Let $P$ and $G$ be the predicted and ground-truth defect pixel sets of an image.
   \item \textbf{Pixel precision} $=\dfrac{TP}{TP+FP}$ and \textbf{pixel recall} $=\dfrac{TP}{TP+FN}$, aggregated over all test pixels. They show which kind of error dominates.
   \item \textbf{Small-defect recall}: share of small ground-truth components (Section 2) of which at least $25\%$ of the pixels are predicted as defect. This metric answers the research question directly, because large defects dominate Dice and pixel recall.
   \item \textbf{Good-image false-positive rate (FPR)}: share of good test images where the prediction contains a connected component of at least 20 pixels. It guards against a model that wins recall by predicting defects everywhere.
-  \item \textbf{Runtime}: training time per epoch, inference time per image (after warm-up), and peak GPU memory.
+  \item \textbf{Runtime}: CPU training time per epoch, inference time per image (after warm-up), and peak process RAM (the selected compute is described in Section 4).
 \end{itemize}
 Results are reported overall and per category in one main comparison table, together with the ablation table, the threshold curve and the runtime comparison.
 
 \section{Implementation Plan}
 
 \textbf{Pipeline.}
+Data preparation, split checks, metrics and the standalone smoke test are implemented. The dataset loader, model wrapper, losses, training, evaluation and profiling modules in \texttt{src/} are currently placeholders; the training and evaluation steps below specify the implementation contract.
 \begin{enumerate}
-  \item Download the five categories and compute dataset statistics.
-  \item Build the stratified split and run leakage checks.
-  \item PyTorch \texttt{Dataset}/\texttt{DataLoader} with preprocessing and train-only augmentation.
-  \item Build the U-Net model and train it with the configured loss; log losses and validation Dice per epoch; keep the best checkpoint.
+  \item Download the five categories and verify the image/mask inventory with \path{scripts/download_data.py} and \path{scripts/dataset_stats.py}.
+  \item Build the stratified split with \path{scripts/make_split.py}, run leakage checks, then compute the train-only small-defect threshold using \path{scripts/dataset_stats.py} with \texttt{--splits-dir splits}.
+  \item Verify U-Net forward/backward and measure synthetic training steps with \path{scripts/smoke_test.py} at both resolutions.
+  \item PyTorch \texttt{Dataset}/\allowbreak\texttt{DataLoader} with preprocessing and train-only augmentation.
+  \item Build the U-Net model and train it with the configured loss; write per-epoch CSV logs and learning curves; keep the checkpoint with the best validation Dice.
   \item Evaluate the best checkpoint on the test split and save metrics as JSON.
   \item Export predictions for failure analysis and run the ablation and runtime measurements.
 \end{enumerate}
@@ -157,33 +159,51 @@ Results are reported overall and per category in one main comparison table, toge
 \begin{center}
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{ll}
+\begin{tabularx}{\linewidth}{lX}
 \toprule
 File & Responsibility \\
 \midrule
 \texttt{scripts/download\_data.py}, \texttt{scripts/dataset\_stats.py} & data acquisition and statistics \\
 \texttt{scripts/make\_split.py}, \texttt{splits/*.txt} & fixed split and leakage checks \\
-\texttt{src/data.py} & dataset, preprocessing, augmentation \\
-\texttt{src/model.py}, \texttt{src/train.py} & model and training loop \\
-\texttt{src/losses.py} & BCE and Dice + Focal losses \\
-\texttt{src/metrics.py}, \texttt{src/evaluate.py} & metrics and evaluation \\
-\texttt{src/profiling.py} & runtime and memory measurement \\
+\texttt{scripts/smoke\_test.py} & CPU step timing and peak process RAM measurement \\
+\texttt{src/data.py} & planned dataset, preprocessing, augmentation \\
+\texttt{src/model.py}, \texttt{src/train.py} & planned model wrapper and training loop \\
+\texttt{src/losses.py} & planned BCE and Dice + Focal losses \\
+\texttt{src/metrics.py}, \texttt{src/evaluate.py} & implemented metrics; planned evaluation loop \\
+\texttt{src/profiling.py} & planned end-to-end training/inference profiling \\
 \texttt{configs/base.yaml} & all hyperparameters \\
-\texttt{tests/} & unit tests (metrics, config, split builder, leakage) \\
-\texttt{.github/workflows/ci.yml} & CI: lint and tests on every push and PR \\
+\texttt{requirements.txt}, \texttt{.python-version} & pinned libraries and Python 3.11 \\
+\texttt{tests/} & unit tests (metrics, config, statistics, split builder, leakage) \\
+\texttt{.github/workflows/ci.yml} & CI: lint, tests and CPU check on main/s1 pushes and PRs \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{Planned interfaces.} A dataset item is \texttt{(image, mask)} with shapes $[3,H,W]$ and $[1,H,W]$, mask values in $\{0,1\}$; the model returns logits of shape $[B,1,H,W]$; \texttt{evaluate(model, loader, threshold)} returns a dictionary with \texttt{dice}, \texttt{iou}, \texttt{precision}, \texttt{recall}, \texttt{small\_recall} and \texttt{good\_fpr}. Training hyperparameters will be read from \texttt{configs/base.yaml}; condition B differs from the baseline config only in the \texttt{loss} field.
+
+\textbf{Training loop (planned).} Fully fine-tune encoder and decoder using AdamW, learning rate $10^{-4}$, weight decay $10^{-4}$, cosine annealing over at most 60 epochs and batch size 8. Select the best checkpoint by maximum validation Dice; stop after 10 consecutive epochs without improvement. Save per-epoch training/validation loss, validation Dice and learning rate to CSV, and plot loss and Dice curves. Baseline uses \texttt{BCEWithLogitsLoss}; condition B uses the configured Dice + Focal loss.
+
+\textbf{Libraries and resources.} Python 3.11; PyTorch 2.6.0 and torchvision 0.21.0; segmentation-models-pytorch 0.4.0 (U-Net, ResNet34 ImageNet weights, Dice and Focal losses); Albumentations 2.0.8; opencv-python and its Albumentations dependency opencv-python-headless 4.11.0.86; scikit-image 0.25.2 (connected components); NumPy 2.1.3; scikit-learn 1.9.0; PyYAML 6.0.2; Matplotlib 3.10.3; tqdm 4.67.1; psutil 6.1.1 (process RAM). These direct dependencies are pinned in \path{requirements.txt}; CI tools are pinned separately in \path{requirements-dev.txt}.
+
+\textbf{Reproducibility.} The smoke test seeds Python, NumPy and PyTorch with 42, enables deterministic algorithms, fixes CPU thread counts, and saves its configuration, package versions, device information and train-manifest hash with each JSON result. Deterministic cuDNN is also set with benchmarking and TF32 disabled, but cuDNN is inactive for CPU execution. Training will use the same settings, seeded DataLoader generators/workers, and a resolved configuration saved per run next to the checkpoint, CSV and curves. Three seeds per condition are planned if measured compute permits; otherwise one seed will be disclosed. Exact reproduction is scoped to the same software and hardware environment. Datasets and checkpoints are not stored in git.
+
+\textbf{Continuous integration.} GitHub Actions runs on pushes to \texttt{main} and \texttt{s1/**}, and on pull requests. It installs pinned CPU PyTorch and project requirements on Python 3.11, checks dependency consistency, lints with Ruff, runs pytest, and checks a small U-Net forward/backward pass on CPU without downloading pretrained weights. Unit tests use synthetic data and cover metrics, configuration, statistics, the split builder, leakage, committed manifest hashes and runtime projection arithmetic. The small CI check does not replace the full local benchmark. Project policy requires passing CI and one approval before merging into \texttt{main}.
+
+\textbf{Compute.} We use local CPU compute: a laptop with an AMD Ryzen AI 9 HX 370 (12 cores) and 31.12\,GiB RAM, running Windows and Python 3.11.12; PyTorch uses 8 computation threads. \path{scripts/smoke_test.py} ran 20 FP32 forward/backward/AdamW steps after 3 warm-up steps with batch size 8 and ImageNet weights; the output shapes were $[8,1,512,512]$ and $[8,1,256,256]$. Raw results are in \path{results/smoke_test_cpu.json}; the exact command is in \path{docs/compute.md}.
+
+\begin{center}
+\small
+\begin{tabular}{rrrrr}
+\toprule
+Resolution & Mean s/step & Peak RAM (GiB) & Min/epoch (69 steps) & Hours/60 epochs \\
+\midrule
+$512^2$ & 7.60 & 4.81 & 8.74 & 8.74 \\
+$256^2$ & 1.91 & 2.25 & 2.19 & 2.19 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\textbf{Interfaces.} A dataset item is \texttt{(image, mask)} with shapes $[3,H,W]$ and $[1,H,W]$, mask values in $\{0,1\}$; the model returns logits of shape $[B,1,H,W]$; \texttt{evaluate(model, loader, threshold)} returns a dictionary with \texttt{dice}, \texttt{iou}, \texttt{precision}, \texttt{recall}, \texttt{small\_recall} and \texttt{good\_fpr}. All hyperparameters are read from \texttt{configs/base.yaml}; condition B differs from the baseline config only in the \texttt{loss} field.
-
-\textbf{Libraries and resources.} Python 3.11, PyTorch, \texttt{segmentation\_models\_pytorch} (U-Net, ResNet34 ImageNet weights, Dice and Focal losses), Albumentations, OpenCV, scikit-image (connected components), NumPy, PyYAML and Matplotlib.
-
-\textbf{Reproducibility.} Fixed seeds for Python, NumPy and PyTorch, deterministic cuDNN, the configuration saved next to every run, and a README with exact setup, download, training and evaluation commands. Datasets and checkpoints are not stored in git.
-
-\textbf{Continuous integration.} A GitHub Actions workflow runs on every push and pull request: it installs CPU PyTorch and the project requirements, lints the code with Ruff and runs unit tests with pytest. The tests use synthetic masks and need neither the dataset nor a GPU; they cover the metric implementations (Dice, IoU, pixel counts, small-defect recall, good-image false-positive rate), the configuration schema, the split builder, and the consistency of the committed split files with their recorded hashes. Merging into \texttt{main} requires a passing CI run and one approval.
-
-\textbf{Compute.} \tbd{GPU model and platform}; measured training step time of \tbd{s/step at $512^2$} gives an estimated \tbd{min} per epoch and \tbd{h} per full run.
+These projections cover training steps only and exclude data loading, augmentation, validation and checkpoint I/O. One 60-epoch run at $512^2$ therefore takes about 9\,h, so the number of seeds per condition is set in Section~3.1 according to this budget; early stopping is expected to shorten runs.
 
 \section{Team Responsibilities}
 

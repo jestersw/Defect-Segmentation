@@ -192,13 +192,21 @@ pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/p
 pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/plan_report.tex
 ```
 
-Alternatively use `tectonic --outdir .tools docs/plan_report.tex`. Review by
-`jestersw` is required; compute placeholders in Section 4 belong to other tasks.
+Alternatively use `tectonic --outdir .tools docs/plan_report.tex`.
+
+## CPU environment and timing (issues #9 and #10)
+
+The task owner selected local CPU compute. See [the reproducible protocol](docs/compute.md)
+for Python 3.11 setup and a full batch-8 U-Net benchmark at 512 and 256 pixels.
+`scripts/smoke_test.py` records step times, peak process RAM and projections for
+both the issue's 582-image reference and the current 550-image train split.
+The training/data/model/evaluation modules in `src/` remain placeholders; the
+standalone smoke test verifies the model independently of that future pipeline.
 
 ## Checks
 
 ```sh
-python -m pip install pytest ruff
+python -m pip install -r requirements-dev.txt
 ruff check .
 python -m pytest -q
 ```
