@@ -169,10 +169,10 @@ Results are reported overall and per category in one main comparison table, toge
 \textbf{Pipeline.}
 Data preparation, split checks, metrics and the standalone smoke test are implemented. The dataset loader, model wrapper, losses, training, evaluation and profiling modules in \texttt{src/} are currently placeholders; the training and evaluation steps below specify the implementation contract.
 \begin{enumerate}
-  \item Download the five categories and verify the image/mask inventory with \texttt{scripts/download\_data.py} and \texttt{scripts/dataset\_stats.py}.
-  \item Build the stratified split with \texttt{scripts/make\_split.py}, run leakage checks, then compute the train-only small-defect threshold with \texttt{scripts/dataset\_stats.py --splits-dir splits}.
-  \item Verify U-Net forward/backward and measure synthetic training steps with \texttt{scripts/smoke\_test.py} at both resolutions.
-  \item PyTorch \texttt{Dataset}/\texttt{DataLoader} with preprocessing and train-only augmentation.
+  \item Download the five categories and verify the image/mask inventory with \path{scripts/download_data.py} and \path{scripts/dataset_stats.py}.
+  \item Build the stratified split with \path{scripts/make_split.py}, run leakage checks, then compute the train-only small-defect threshold using \path{scripts/dataset_stats.py} with \texttt{--splits-dir splits}.
+  \item Verify U-Net forward/backward and measure synthetic training steps with \path{scripts/smoke_test.py} at both resolutions.
+  \item PyTorch \texttt{Dataset}/\allowbreak\texttt{DataLoader} with preprocessing and train-only augmentation.
   \item Build the U-Net model and train it with the configured loss; write per-epoch CSV logs and learning curves; keep the checkpoint with the best validation Dice.
   \item Evaluate the best checkpoint on the test split and save metrics as JSON.
   \item Export predictions for failure analysis and run the ablation and runtime measurements.
@@ -206,7 +206,7 @@ File & Responsibility \\
 
 \textbf{Training loop (planned).} Fully fine-tune encoder and decoder using AdamW, learning rate $10^{-4}$, weight decay $10^{-4}$, cosine annealing over at most 60 epochs and batch size 8. Select the best checkpoint by maximum validation Dice; stop after 10 consecutive epochs without improvement. Save per-epoch training/validation loss, validation Dice and learning rate to CSV, and plot loss and Dice curves. Baseline uses \texttt{BCEWithLogitsLoss}; condition B uses the configured Dice + Focal loss.
 
-\textbf{Libraries and resources.} Python 3.11; PyTorch 2.6.0 and torchvision 0.21.0; \texttt{segmentation-models-pytorch} 0.4.0 (U-Net, ResNet34 ImageNet weights, Dice and Focal losses); Albumentations 2.0.8; \texttt{opencv-python} and its Albumentations dependency \texttt{opencv-python-headless} 4.11.0.86; scikit-image 0.25.2 (connected components); NumPy 2.1.3; scikit-learn 1.9.0; PyYAML 6.0.2; Matplotlib 3.10.3; tqdm 4.67.1; psutil 6.1.1 (process RAM). These direct dependencies are pinned in \texttt{requirements.txt}; CI tools are pinned separately in \texttt{requirements-dev.txt}.
+\textbf{Libraries and resources.} Python 3.11; PyTorch 2.6.0 and torchvision 0.21.0; segmentation-models-pytorch 0.4.0 (U-Net, ResNet34 ImageNet weights, Dice and Focal losses); Albumentations 2.0.8; opencv-python and its Albumentations dependency opencv-python-headless 4.11.0.86; scikit-image 0.25.2 (connected components); NumPy 2.1.3; scikit-learn 1.9.0; PyYAML 6.0.2; Matplotlib 3.10.3; tqdm 4.67.1; psutil 6.1.1 (process RAM). These direct dependencies are pinned in \path{requirements.txt}; CI tools are pinned separately in \path{requirements-dev.txt}.
 
 \textbf{Reproducibility.} The smoke test seeds Python, NumPy and PyTorch with 42, enables deterministic algorithms, fixes CPU thread counts, and saves its configuration, package versions, device information and train-manifest hash with each JSON result. Deterministic cuDNN is also set with benchmarking and TF32 disabled, but cuDNN is inactive for CPU execution. Training will use the same settings, seeded DataLoader generators/workers, and a resolved configuration saved per run next to the checkpoint, CSV and curves. Three seeds per condition are planned if measured compute permits; otherwise one seed will be disclosed. Exact reproduction is scoped to the same software and hardware environment. Datasets and checkpoints are not stored in git.
 

@@ -90,7 +90,8 @@ from planned training modules. Retain timing estimates for both the issue's 582
 images and the actual 550-image train split.
 
 Local validation: clean Python 3.11 installation, compatible dependencies, Ruff,
-unit tests and full ImageNet-pretrained CPU smoke test. Remote CI and AigulFar's
+46 passing tests, full ImageNet-pretrained CPU smoke test, and successful PDF
+compilation with Tectonic 0.17.0. Remote CI and AigulFar's
 review are required before merge. No full training run was started.
 
 Closes #9. Closes #10.

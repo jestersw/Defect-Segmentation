@@ -11,6 +11,8 @@ The full CPU run completed on 2026-10-04. Raw evidence is in
 [installed package snapshot](../results/smoke_test_cpu_environment.txt).
 At 512 pixels the mean is 7.5996 s/step and peak RAM is 4.806 GiB;
 at 256 pixels it is 1.9071 s/step and 2.248 GiB. No full 60-epoch run was started.
+Local verification passed: dependency compatibility, Ruff, 46 tests, and PDF
+compilation with Tectonic 0.17.0. GitHub Actions is pending the branch push.
 
 ## Clean setup
 
