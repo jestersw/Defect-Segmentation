@@ -34,7 +34,7 @@
   \item Categories: \texttt{tile}, \texttt{hazelnut}, \texttt{wood}, \texttt{metal\_nut}, \texttt{capsule}.
   \item Model: U-Net with a ResNet34 encoder pretrained on ImageNet.
   \item Compared conditions: baseline (BCE) vs.\ condition B (Dice + Focal); the loss is the only changed factor.
-  \item Ablation: input resolution $256$ vs.\ $512$, plus a threshold sensitivity curve.
+  \item Ablation: input resolution $512$ vs.\ the default $256$ for the better condition, plus a threshold sensitivity curve.
 \end{itemize}
 
 \textbf{Out of scope.} Unsupervised anomaly detection without masks, multi-class defect-type segmentation, and the design of new architectures.
@@ -83,7 +83,7 @@ Total      & 1307 & 137 & 416 (393) & 786 & 550 & 118 & 118 \\
   \item The split script refuses to overwrite committed split files unless explicitly forced, and SHA-256 hashes of the split files are stored in \texttt{results/split\_metadata.json} and checked in CI.
 \end{itemize}
 
-\textbf{Preprocessing.} Stored images retain their original resolution. The implemented statistics pipeline resizes masks to $512\times512$ using OpenCV nearest-neighbour interpolation and binarises them at $>0$. The planned training loader will resize images with bilinear interpolation and masks with nearest-neighbour interpolation to $512\times512$ ($256\times256$ in the ablation), and normalise images with ImageNet mean and standard deviation. These training transforms are planned; \texttt{src/data.py} is not yet implemented.
+\textbf{Preprocessing.} Stored images retain their original resolution. The implemented statistics pipeline resizes masks to $512\times512$ using OpenCV nearest-neighbour interpolation and binarises them at $>0$. The planned training loader will resize images with bilinear interpolation and masks with nearest-neighbour interpolation to $256\times256$ ($512\times512$ in the ablation), and normalise images with ImageNet mean and standard deviation. These training transforms are planned; \texttt{src/data.py} is not yet implemented.
 
 \textbf{Augmentation (train only, planned).} Horizontal and vertical flips and $90^\circ$ rotations will be applied jointly to images and masks. Mild brightness and contrast changes will affect images only. Validation and test will use deterministic preprocessing without augmentation.
 
@@ -102,7 +102,7 @@ Total      & 1307 & 137 & 416 (393) & 786 & 550 & 118 & 118 \\
 \midrule
 Model & U-Net, ResNet34 encoder, ImageNet weights & same \\
 Loss & $\mathcal{L}_{\mathrm{BCE}}$ & $0.5\,\mathcal{L}_{\mathrm{Dice}} + 0.5\,\mathcal{L}_{\mathrm{Focal}}$ ($\gamma=2$, $\alpha=0.25$) \\
-Data, resolution, augmentation & split of Section 2, $512\times512$ & same \\
+Data, resolution, augmentation & split of Section 2, $256\times256$ & same \\
 Optimisation & AdamW, lr $10^{-4}$, wd $10^{-4}$, cosine schedule, batch 8, $\le 60$ epochs & same \\
 Model selection & early stopping on validation Dice, patience 10 & same \\
 Threshold & $0.5$ & same \\
@@ -119,11 +119,11 @@ With predicted probabilities $p_i$ and ground truth $g_i\in\{0,1\}$ over pixels 
 \end{align*}
 where $p_{t,i}=p_i$ if $g_i=1$ and $1-p_i$ otherwise. BCE weights every pixel equally, Dice depends only on the overlap with the defect, and Focal reduces the weight of pixels that are already classified confidently.
 
-\textbf{Training strategy.} Both conditions fine-tune the full network (encoder and decoder) starting from ImageNet weights, with identical schedule and hyperparameters. If compute allows, each condition is trained with 3 seeds and reported as mean $\pm$ standard deviation; otherwise one seed is used and this is stated in the results.
+\textbf{Training strategy.} Both conditions fine-tune the full network (encoder and decoder) starting from ImageNet weights, with identical schedule and hyperparameters. Because only CPU compute is available (Section 4), each condition is trained with a single seed (42); predictions are upsampled to $512\times512$ before evaluation so that the small-defect threshold from Section 2 applies unchanged.
 
 \textbf{Ablation and sensitivity.}
 \begin{itemize}
-  \item Resolution: the better condition is retrained at $256\times256$. Hypothesis: small defects shrink to a few pixels and their recall drops.
+  \item Resolution: the better condition is retrained at $512\times512$. Hypothesis: the higher input resolution preserves small defects and improves their recall.
   \item Threshold: masks are binarised at $0.3$, $0.5$ and $0.7$ to show the precision--recall trade-off.
 \end{itemize}
 
@@ -185,7 +185,7 @@ File & Responsibility \\
 
 \textbf{Libraries and resources.} Python 3.11; PyTorch 2.6.0 and torchvision 0.21.0; segmentation-models-pytorch 0.4.0 (U-Net, ResNet34 ImageNet weights, Dice and Focal losses); Albumentations 2.0.8; opencv-python and its Albumentations dependency opencv-python-headless 4.11.0.86; scikit-image 0.25.2 (connected components); NumPy 2.1.3; scikit-learn 1.9.0; PyYAML 6.0.2; Matplotlib 3.10.3; tqdm 4.67.1; psutil 6.1.1 (process RAM). These direct dependencies are pinned in \path{requirements.txt}; CI tools are pinned separately in \path{requirements-dev.txt}.
 
-\textbf{Reproducibility.} The smoke test seeds Python, NumPy and PyTorch with 42, enables deterministic algorithms, fixes CPU thread counts, and saves its configuration, package versions, device information and train-manifest hash with each JSON result. Deterministic cuDNN is also set with benchmarking and TF32 disabled, but cuDNN is inactive for CPU execution. Training will use the same settings, seeded DataLoader generators/workers, and a resolved configuration saved per run next to the checkpoint, CSV and curves. Three seeds per condition are planned if measured compute permits; otherwise one seed will be disclosed. Exact reproduction is scoped to the same software and hardware environment. Datasets and checkpoints are not stored in git.
+\textbf{Reproducibility.} The smoke test seeds Python, NumPy and PyTorch with 42, enables deterministic algorithms, fixes CPU thread counts, and saves its configuration, package versions, device information and train-manifest hash with each JSON result. Deterministic cuDNN is also set with benchmarking and TF32 disabled, but cuDNN is inactive for CPU execution. Training will use the same settings, seeded DataLoader generators/workers, and a resolved configuration saved per run next to the checkpoint, CSV and curves. One seed per condition is used because of the CPU-only budget. Exact reproduction is scoped to the same software and hardware environment. Datasets and checkpoints are not stored in git.
 
 \textbf{Continuous integration.} GitHub Actions runs on pushes to \texttt{main} and \texttt{s1/**}, and on pull requests. It installs pinned CPU PyTorch and project requirements on Python 3.11, checks dependency consistency, lints with Ruff, runs pytest, and checks a small U-Net forward/backward pass on CPU without downloading pretrained weights. Unit tests use synthetic data and cover metrics, configuration, statistics, the split builder, leakage, committed manifest hashes and runtime projection arithmetic. The small CI check does not replace the full local benchmark. Project policy requires passing CI and one approval before merging into \texttt{main}.
 
@@ -203,7 +203,7 @@ $256^2$ & 1.91 & 2.25 & 2.19 & 2.19 \\
 \end{tabular}
 \end{center}
 
-These projections cover training steps only and exclude data loading, augmentation, validation and checkpoint I/O. One 60-epoch run at $512^2$ therefore takes about 9\,h, so the number of seeds per condition is set in Section~3.1 according to this budget; early stopping is expected to shorten runs.
+These projections cover training steps only and exclude data loading, augmentation, validation and checkpoint I/O. One 60-epoch run at $512^2$ therefore takes about 9\,h. We train both conditions at $256^2$ (at most about 2.2\,h per run) and use $512^2$ only for the single ablation run; early stopping is expected to shorten runs.
 
 \section{Team Responsibilities}
 

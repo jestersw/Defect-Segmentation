@@ -24,6 +24,10 @@ train:
   weight_decay: 1.0e-4
   scheduler: cosine
   batch_size: 8
+  input_size: 256
+  eval_size: 512
+  ablation_input_size: 512
+  seeds: [42]
   max_epochs: 60
   early_stopping_metric: val_dice
   patience: 10
