@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 's1/**']
   pull_request:
 
 concurrency:
@@ -20,10 +20,18 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install CPU PyTorch
-        run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+        run: pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest ruff
+        run: pip install -r requirements-dev.txt
+      - name: Check dependency consistency
+        run: pip check
       - name: Lint
         run: ruff check .
       - name: Test
         run: pytest -q
+      - name: Small CPU model check (full benchmark runs locally)
+        run: >-
+          python scripts/smoke_test.py --device cpu --encoder-weights none
+          --sizes 64 --batch-size 2 --warmup 1 --steps 1
+          --platform github-actions --session-limits "CI job: 15 minutes"
+          --output results/ci-smoke.json

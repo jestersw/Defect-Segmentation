@@ -1,11 +1,15 @@
-torch
-torchvision
-segmentation-models-pytorch
-albumentations
-opencv-python
-numpy
-scikit-image
+# Python 3.11 (see .python-version and CI).
+torch==2.6.0
+torchvision==0.21.0
+segmentation-models-pytorch==0.4.0
+albumentations==2.0.8
+opencv-python==4.11.0.86
+# Albumentations also installs the headless OpenCV distribution.
+opencv-python-headless==4.11.0.86
+numpy==2.1.3
+scikit-image==0.25.2
 scikit-learn==1.9.0
-pyyaml
-matplotlib
-tqdm
+pyyaml==6.0.2
+matplotlib==3.10.3
+tqdm==4.67.1
+psutil==6.1.1

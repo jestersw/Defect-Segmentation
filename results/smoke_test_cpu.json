@@ -1,0 +1,148 @@
+{
+  "timestamp_utc": "2026-10-04T16:14:02.751192+00:00",
+  "git_commit": "285f56927057198dd322a65696eb9a6bf98bf0a8",
+  "requirements_sha256": "36f73815241502df5c204c1f7a7a03d15ced272a56e0362b9d20c10ca8feb8bd",
+  "environment": {
+    "platform": "local-laptop",
+    "os": "Windows-10-10.0.26200-SP0",
+    "device": "cpu",
+    "device_name": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M",
+    "system_ram_gib": 31.118999481201172,
+    "physical_cpu_cores": 12,
+    "logical_cpu_cores": 24,
+    "session_limits": "No provider quota; limited by uptime, sleep and available RAM",
+    "python": "3.11.12",
+    "cpu_threads": 8,
+    "packages": {
+      "torch": "2.6.0",
+      "torchvision": "0.21.0",
+      "segmentation-models-pytorch": "0.4.0",
+      "albumentations": "2.0.8",
+      "opencv-python": "4.11.0.86",
+      "opencv-python-headless": "4.11.0.86",
+      "numpy": "2.1.3",
+      "scikit-image": "0.25.2",
+      "scikit-learn": "1.9.0",
+      "pyyaml": "6.0.2",
+      "matplotlib": "3.10.3",
+      "tqdm": "4.67.1",
+      "psutil": "6.1.1"
+    }
+  },
+  "settings": {
+    "device": "cpu",
+    "threads": 8,
+    "sizes": [
+      512,
+      256
+    ],
+    "batch_size": 8,
+    "warmup": 3,
+    "steps": 20,
+    "seed": 42,
+    "encoder_weights": "imagenet",
+    "platform": "local-laptop",
+    "session_limits": "No provider quota; limited by uptime, sleep and available RAM"
+  },
+  "cpu_protocol_satisfied": true,
+  "results": [
+    {
+      "size": 512,
+      "output_shape": [
+        8,
+        1,
+        512,
+        512
+      ],
+      "mean_step_seconds": 7.5995587650046215,
+      "step_seconds": [
+        7.7282701000222005,
+        7.614004700008081,
+        7.3742309999943245,
+        7.674457699991763,
+        7.645547199994326,
+        7.577909500017995,
+        7.723452800011728,
+        7.813216000009561,
+        7.7546260000090115,
+        7.641607199999271,
+        7.689153100014664,
+        7.570366200001445,
+        7.505365399993025,
+        7.51408680001623,
+        7.472077999991598,
+        7.617307199980132,
+        7.422740700014401,
+        7.569963100017048,
+        7.4499060999951325,
+        7.6328865000105
+      ],
+      "last_loss": 0.6918395161628723,
+      "issue_estimate": {
+        "samples": 582,
+        "steps_per_epoch": 73,
+        "minutes_per_epoch": 9.246129830755622,
+        "hours_per_60_epochs": 9.246129830755622
+      },
+      "current_split_estimate": {
+        "samples": 550,
+        "steps_per_epoch": 69,
+        "minutes_per_epoch": 8.739492579755314,
+        "hours_per_60_epochs": 8.739492579755314
+      },
+      "train_manifest_sha256": "f1b8653d021888d8af6dac579414d7a526c9a98d936ef9bfa3d3b91ddb8677d7",
+      "peak_process_ram_bytes": 5160538112,
+      "peak_process_ram_gib": 4.806125640869141,
+      "ram_measurement": "OS peak working set"
+    },
+    {
+      "size": 256,
+      "output_shape": [
+        8,
+        1,
+        256,
+        256
+      ],
+      "mean_step_seconds": 1.9071129050003948,
+      "step_seconds": [
+        1.9092066999874078,
+        1.903772099991329,
+        1.838653599988902,
+        1.8873516999883577,
+        1.9351295999949798,
+        1.9341755000059493,
+        1.9293071000138298,
+        1.9326766000012867,
+        1.9198889000108466,
+        1.8976020000118297,
+        1.9368382999964524,
+        1.9067492999893147,
+        1.9287305000179913,
+        1.933465799986152,
+        1.8965978999913204,
+        1.8813682000036351,
+        1.877536100015277,
+        1.9069405000191182,
+        1.8996246999886353,
+        1.8866430000052787
+      ],
+      "last_loss": 0.6868913173675537,
+      "issue_estimate": {
+        "samples": 582,
+        "steps_per_epoch": 73,
+        "minutes_per_epoch": 2.320320701083814,
+        "hours_per_60_epochs": 2.3203207010838134
+      },
+      "current_split_estimate": {
+        "samples": 550,
+        "steps_per_epoch": 69,
+        "minutes_per_epoch": 2.193179840750454,
+        "hours_per_60_epochs": 2.193179840750454
+      },
+      "train_manifest_sha256": "f1b8653d021888d8af6dac579414d7a526c9a98d936ef9bfa3d3b91ddb8677d7",
+      "peak_process_ram_bytes": 2414194688,
+      "peak_process_ram_gib": 2.248394012451172,
+      "ram_measurement": "OS peak working set"
+    }
+  ]
+}
