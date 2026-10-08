@@ -177,7 +177,7 @@ threshold comes exclusively from the shared training split; see
 
 ## Dataset Preparation report section (issue #8)
 
-Section 2 of [`docs/plan_report.tex`](docs/plan_report.tex) contains the verified
+Section 2 of [`docs/report_1.tex`](docs/report_1.tex) contains the verified
 dataset preparation, actual split counts, and train-only threshold after excluding
 `metal_nut/flip`. Its numbers come from the committed CSV/JSON results. It
 distinguishes implemented statistics and leakage checks from the planned training
@@ -188,11 +188,11 @@ With an existing LaTeX installation, build the full report from the repository r
 
 ```sh
 python -c "from pathlib import Path; Path('.tools').mkdir(exist_ok=True)"
-pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/plan_report.tex
-pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/plan_report.tex
+pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/report_1.tex
+pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/report_1.tex
 ```
 
-Alternatively use `tectonic --outdir .tools docs/plan_report.tex`.
+Alternatively use `tectonic --outdir .tools docs/report_1.tex`.
 
 ## CPU environment and timing (issues #9 and #10)
 

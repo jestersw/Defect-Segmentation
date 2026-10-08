@@ -1,0 +1,136 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\setlist{nosep,leftmargin=*}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\newcommand{\tbd}[1]{\textcolor{red}{[TBD: #1]}}
+\newcommand{\owner}[1]{\textcolor{gray}{\small(#1)}}
+\newcommand{\figfile}[2]{\IfFileExists{../#1}{\includegraphics[width=#2]{../#1}}{\IfFileExists{#1}{\includegraphics[width=#2]{#1}}{\fbox{\parbox[c][3cm][c]{#2}{\centering\tbd{figure \texttt{\detokenize{#1}}}}}}}}
+\newcommand{\teamcontacts}{}
+\IfFileExists{team_private.tex}{\input{team_private.tex}}{\IfFileExists{docs/team_private.tex}{\input{docs/team_private.tex}}{}}
+
+\title{\textbf{Industrial Defect Segmentation on MVTec AD}\\[2pt]\large Stage 2: First Working Model -- Computer Vision 2026}
+\author{Team: jestersw (lead), moonshine1l, psandersi, AigulFar}
+\date{13 October 2026\\[2pt]\small Repository: \url{https://github.com/jestersw/Defect-Segmentation} \quad Commit: \tbd{hash}}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\section{Summary} \owner{jestersw}
+
+We implemented the data loading pipeline, a U-Net baseline trained with binary cross-entropy (BCE) and the evaluation code, and trained the baseline on the 550-image training split at $256\times256$ on CPU. On the validation split the baseline reaches Dice \tbd{x.xx} and small-defect recall \tbd{x.xx}. The test split has not been used; it is reserved for the final comparison with the Dice + Focal condition.
+
+\section{Data Loading and Preprocessing} \owner{moonshine1l}
+
+\textbf{Dataset class.} \texttt{MVTecSegDataset} (\path{src/data.py}) reads the fixed manifests in \path{splits/} (550 / 118 / 118 images). For every image it loads the ground-truth mask from \path{<category>/ground_truth/<defect_type>/<stem>_mask.png}; good images receive an all-zero mask. Each item is an image tensor $[3,256,256]$ and a binary mask tensor; masks are $[1,256,256]$ for training and $[1,512,512]$ for validation and test, so that metrics are computed at the resolution of the small-defect threshold (859 px). \tbd{confirm against the final implementation}
+
+\textbf{Preprocessing.} Images are resized with bilinear interpolation and normalised with ImageNet mean and standard deviation; masks are resized with nearest-neighbour interpolation and binarised.
+
+\textbf{Augmentation (train only).} Horizontal and vertical flips and $90^\circ$ rotations are applied jointly to image and mask; brightness and contrast are changed by up to 10\% on the image only. Validation and test are deterministic.
+
+\textbf{Loaders and tests.} Batch size 8, training data shuffled with a seeded generator. Unit tests on synthetic images check shapes, binary masks, empty masks for good images, image--mask alignment under augmentation and determinism in evaluation mode. \tbd{number of tests, loading time per epoch}
+
+\begin{figure}[htbp]
+\centering
+\figfile{results/s2/data_samples.png}{0.85\linewidth}
+\caption{Training samples after augmentation with ground-truth masks overlaid.}
+\label{fig:data}
+\end{figure}
+
+\section{Baseline Model and Training Setup} \owner{psandersi}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+Model & U-Net (\texttt{segmentation\_models\_pytorch} 0.4.0), ResNet34 encoder with ImageNet weights, 1 output channel (logits) \\
+Parameters & \tbd{number} \\
+Loss & \texttt{BCEWithLogitsLoss} \\
+Optimiser & AdamW, learning rate $10^{-4}$, weight decay $10^{-4}$, cosine schedule \\
+Input / batch & $256\times256$, batch size 8, 69 steps per epoch \\
+Epochs & at most 60, early stopping on validation Dice with patience 10 \\
+Seed & 42, deterministic algorithms \\
+Hardware & laptop CPU (AMD Ryzen AI 9 HX 370, 31\,GiB RAM), PyTorch 2.6.0 \\
+Training time & \tbd{min per epoch, total time, best epoch} \\
+\bottomrule
+\end{tabularx}
+\caption{Baseline configuration (\texttt{results/runs/baseline\_bce\_256/config.yaml}).}
+\end{table}
+
+\textbf{Training procedure.} \path{src/train.py} trains the model from \path{configs/base.yaml}, evaluates on the validation split after every epoch and keeps the checkpoint with the highest validation Dice. Per-epoch losses, validation metrics and timings are written to \path{results/runs/baseline_bce_256/history.csv}.
+
+\begin{figure}[htbp]
+\centering
+\figfile{results/runs/baseline_bce_256/curves.png}{0.8\linewidth}
+\caption{Training and validation loss and validation Dice per epoch.}
+\label{fig:curves}
+\end{figure}
+
+\section{Initial Results (Validation Split)} \owner{jestersw}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+ & Dice & IoU & Pixel P & Pixel R & Small-defect R & Good FPR \\
+\midrule
+All      & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+\midrule
+capsule  & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+hazelnut & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+metal\_nut & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+tile     & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+wood     & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+\bottomrule
+\end{tabular}
+\caption{BCE baseline on the validation split (118 images), threshold 0.5, predictions upsampled to $512\times512$. Source: \texttt{results/runs/baseline\_bce\_256/metrics\_val.json}.}
+\label{tab:results}
+\end{table}
+
+\textbf{Threshold sensitivity.} At thresholds 0.3 / 0.5 / 0.7 the pixel recall is \tbd{} / \tbd{} / \tbd{} and the pixel precision \tbd{} / \tbd{} / \tbd{}.
+
+\textbf{Interpretation.} \tbd{2--3 sentences: which categories are easy or hard, how small-defect recall compares with overall recall, whether the model predicts defects on good images}
+
+\begin{figure}[htbp]
+\centering
+\figfile{results/s2/baseline_examples.png}{0.9\linewidth}
+\caption{Validation examples: image, ground truth and baseline prediction, including small defects and one good image.}
+\label{fig:examples}
+\end{figure}
+
+\section{Problems and Observations} \owner{everyone}
+
+\begin{itemize}
+  \item \textbf{CPU-only compute.} No GPU is available, so training runs at $256\times256$ with one seed; a 60-epoch run at $512\times512$ would take about 9\,h.
+  \item \textbf{Validation only.} Initial results use the validation split; the test split is kept for the final comparison to avoid selection bias.
+  \item \tbd{moonshine1l: data pipeline observation}
+  \item \tbd{psandersi: training observation (convergence, time per epoch vs.\ smoke test, memory)}
+  \item \tbd{jestersw: results observation (e.g.\ missed small defects, false positives)}
+  \item \tbd{AigulFar: observation on the losses}
+\end{itemize}
+
+\section{Next Steps} \owner{AigulFar}
+
+\begin{itemize}
+  \item Train condition B (Dice + Focal) with the same configuration and compare on validation (stage 3, 20 Oct).
+  \item Retrain the better condition at $512\times512$ for the resolution ablation.
+  \item \tbd{anything learned from the baseline that changes the plan}
+\end{itemize}
+
+\textbf{Contributions.} jestersw: evaluation, results, report; moonshine1l: data pipeline; psandersi: model, training loop, baseline run; AigulFar: loss functions.
+
+\teamcontacts
+
+\end{document}
