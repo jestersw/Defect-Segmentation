@@ -1,0 +1,32 @@
+{
+  "python": "3.13.7",
+  "versions": {
+    "torch": "2.10.0",
+    "albumentations": "2.0.8",
+    "opencv-python-headless": "4.11.0.86",
+    "numpy": "2.1.3"
+  },
+  "num_workers": 4,
+  "batch_size": 8,
+  "input_size": 256,
+  "eval_size": 512,
+  "seed": 42,
+  "torch_threads": 4,
+  "scope": "One full train and val loader pass, including worker startup; no model, no test.",
+  "split_sha256": {
+    "train": "f1b8653d021888d8af6dac579414d7a526c9a98d936ef9bfa3d3b91ddb8677d7",
+    "val": "daa80d3e88b1e4afbffc059f0e5a01969f061135c548eb6fd1cd23af718b9f36"
+  },
+  "passes": {
+    "train": {
+      "images": 550,
+      "batches": 69,
+      "seconds": 21.86739420000231
+    },
+    "val": {
+      "images": 118,
+      "batches": 15,
+      "seconds": 6.539473199998611
+    }
+  }
+}
