@@ -32,13 +32,13 @@ We implemented the data loading pipeline, a U-Net baseline trained with binary c
 
 \section{Data Loading and Preprocessing} \owner{moonshine1l}
 
-\textbf{Dataset class.} \texttt{MVTecSegDataset} (\path{src/data.py}) reads the fixed manifests in \path{splits/} (550 / 118 / 118 images). For every image it loads the ground-truth mask from \path{<category>/ground_truth/<defect_type>/<stem>_mask.png}; good images receive an all-zero mask. Each item is an image tensor $[3,256,256]$ and a binary mask tensor; masks are $[1,256,256]$ for training and $[1,512,512]$ for validation and test, so that metrics are computed at the resolution of the small-defect threshold (859 px). \tbd{confirm against the final implementation}
+\textbf{Dataset class.} \texttt{MVTecSegDataset} (\path{src/data.py}) reads the fixed manifests in \path{splits/} (550 / 118 / 118 images). For every image it loads the ground-truth mask from \path{<category>/ground_truth/<defect_type>/<stem>_mask.png}; good images receive an all-zero mask. Each item is an image tensor $[3,256,256]$ and a binary mask tensor; masks are $[1,256,256]$ for training and $[1,512,512]$ for validation and test, so that metrics are computed at the resolution of the small-defect threshold (859.28 px). Both tensors are contiguous \texttt{float32}; \texttt{records} preserves manifest order for category-wise evaluation.
 
-\textbf{Preprocessing.} Images are resized with bilinear interpolation and normalised with ImageNet mean and standard deviation; masks are resized with nearest-neighbour interpolation and binarised.
+\textbf{Preprocessing.} Images are read as RGB, resized with bilinear interpolation and normalised with ImageNet mean and standard deviation. Masks are resized directly from their original resolution with nearest-neighbour interpolation and binarised at $>0$; evaluation masks never pass through the smaller input resolution.
 
-\textbf{Augmentation (train only).} Horizontal and vertical flips and $90^\circ$ rotations are applied jointly to image and mask; brightness and contrast are changed by up to 10\% on the image only. Validation and test are deterministic.
+\textbf{Augmentation (train only).} Horizontal and vertical flips and $90^\circ$ rotations are applied jointly to image and mask. Image-only \texttt{RandomBrightnessContrast} uses brightness and contrast limits of 0.1; the brightness offset is relative to the maximum pixel value. Each of the four transforms has probability 0.5. Validation and test are deterministic.
 
-\textbf{Loaders and tests.} Batch size 8, training data shuffled with a seeded generator. Unit tests on synthetic images check shapes, binary masks, empty masks for good images, image--mask alignment under augmentation and determinism in evaluation mode. \tbd{number of tests, loading time per epoch}
+\textbf{Loaders and tests.} Batch size 8, four workers, and only training data shuffled; the last partial batch is retained. Independent seeded generators and worker-specific augmentation seeds reproduce runs under the same worker count and library versions. All 26 data tests pass on synthetic images, covering tensor formats, RGB normalisation, binary/empty masks, paired augmentation, deterministic evaluation, manifest order, Windows-compatible worker spawning and integration with evaluation at a different mask resolution. A local check read all 550 training images in 69 batches and 118 validation images in 15 batches; no real test images were loaded. One loader pass took 21.87 s for train and 6.54 s for validation, including worker startup and tensor checks, without a model. These are local diagnostic timings under Python 3.13 / PyTorch 2.10, rather than the project Python 3.11 / PyTorch 2.6 baseline environment. Settings, versions and split hashes are recorded in \path{results/s2/data_loading_check.json}.
 
 \begin{figure}[htbp]
 \centering
@@ -115,7 +115,7 @@ wood     & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
 \begin{itemize}
   \item \textbf{CPU-only compute.} No GPU is available, so training runs at $256\times256$ with one seed; a 60-epoch run at $512\times512$ would take about 9\,h.
   \item \textbf{Validation only.} Initial results use the validation split; the test split is kept for the final comparison to avoid selection bias.
-  \item \tbd{moonshine1l: data pipeline observation}
+  \item \textbf{Evaluation mask resolution.} A synthetic one-pixel defect survives in the evaluation mask even when the model input is smaller: masks are resized independently from the original annotation. This keeps ground truth at the resolution of the fixed small-defect threshold. The lower-resolution model may still miss such defects.
   \item \tbd{psandersi: training observation (convergence, time per epoch vs.\ smoke test, memory)}
   \item \tbd{jestersw: results observation (e.g.\ missed small defects, false positives)}
   \item \tbd{AigulFar: observation on the losses}
