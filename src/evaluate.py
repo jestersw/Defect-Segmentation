@@ -3,6 +3,7 @@ import csv
 import json
 import math
 from collections import defaultdict
+from itertools import islice
 from pathlib import Path
 
 import numpy as np
@@ -22,21 +23,38 @@ def model_device(model):
         return torch.device("cpu")
 
 
-def predict_probabilities(model, loader):
+def _collect_predictions(model, loader, criterion=None, limit_batches=None):
     device = model_device(model)
     was_training = model.training
     model.eval()
     probabilities, targets = [], []
-    with torch.no_grad():
-        for images, masks in loader:
-            logits = model(images.to(device))
-            if logits.shape[-2:] != masks.shape[-2:]:
-                logits = F.interpolate(
-                    logits, size=masks.shape[-2:], mode="bilinear", align_corners=False
-                )
-            probabilities.extend(torch.sigmoid(logits)[:, 0].float().cpu().numpy())
-            targets.extend((masks[:, 0] > 0.5).cpu().numpy())
-    model.train(was_training)
+    loss_sum, count = 0.0, 0
+    batches = loader if limit_batches is None else islice(loader, limit_batches)
+    try:
+        with torch.no_grad():
+            for images, masks in batches:
+                logits = model(images.to(device))
+                if logits.shape[-2:] != masks.shape[-2:]:
+                    logits = F.interpolate(
+                        logits, size=masks.shape[-2:], mode="bilinear", align_corners=False
+                    )
+                if criterion is not None:
+                    loss = criterion(logits, masks.to(device))
+                    if not torch.isfinite(loss):
+                        raise ValueError("Non-finite validation loss")
+                    loss_sum += loss.item() * len(images)
+                count += len(images)
+                probabilities.extend(torch.sigmoid(logits)[:, 0].float().cpu().numpy())
+                targets.extend((masks[:, 0] > 0.5).cpu().numpy())
+    finally:
+        model.train(was_training)
+    if count == 0:
+        raise ValueError("Empty evaluation loader")
+    return probabilities, targets, loss_sum / count
+
+
+def predict_probabilities(model, loader):
+    probabilities, targets, _ = _collect_predictions(model, loader)
     return probabilities, targets
 
 
@@ -70,10 +88,13 @@ def per_category(probabilities, targets, records, threshold, settings):
     return rows
 
 
-def evaluate(model, loader, cfg, threshold=None):
+def evaluate(model, loader, cfg, threshold=None, *, criterion=None, limit_batches=None):
     threshold = cfg["eval"]["threshold"] if threshold is None else threshold
-    probabilities, targets = predict_probabilities(model, loader)
-    return score(probabilities, targets, threshold, metric_settings(cfg))
+    probabilities, targets, loss = _collect_predictions(model, loader, criterion, limit_batches)
+    result = score(probabilities, targets, threshold, metric_settings(cfg))
+    if criterion is not None:
+        result["loss"] = loss
+    return result
 
 
 def full_report(model, loader, cfg):

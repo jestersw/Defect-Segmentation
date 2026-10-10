@@ -1,0 +1,109 @@
+{
+  "timestamp_utc": "2026-10-10T05:46:53.565586+00:00",
+  "environment": {
+    "git_commit": "2378ef50d3b49e4840674356ce942f6bd7298ce9",
+    "python": "3.11.12",
+    "os": "Windows-10-10.0.26200-SP0",
+    "cpu": "AMD64 Family 26 Model 36 Stepping 0, AuthenticAMD",
+    "ram_gib": 31.118999481201172,
+    "cpu_threads": 8,
+    "interop_threads": 1,
+    "packages": {
+      "torch": "2.6.0",
+      "torchvision": "0.21.0",
+      "segmentation-models-pytorch": "0.4.0",
+      "albumentations": "2.0.8",
+      "numpy": "2.1.3"
+    },
+    "source_sha256": {
+      "src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/data.py": "3b85a1b3c47ba3960038545b043888e4d3bcc532e757e3584b7c142b4bfba348",
+      "src/evaluate.py": "c34970a57d56530e0132079d0809ae71784567478aff062bd515a4fffc0c0438",
+      "src/losses.py": "34b720bbaf6af8948b27d213b4f77717a48744c8fa0ae6fae617e1fc96e82ec4",
+      "src/metrics.py": "4cf7908a530ee6ea5082fc947ae4fc93499d2a5ada4cfd9d1e892a79124de633",
+      "src/model.py": "7ac43f74f2d5b4ad4fd1999ee563cde3c8fcebf9fa3b9faa75f502805a0b8398",
+      "src/profiling.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/train.py": "0024ea09570c541537bc31d97079e7569d0cdb82c4e2865d3e1ea3da88928504"
+    }
+  },
+  "batch_size": 8,
+  "size": 256,
+  "warmup": 3,
+  "measured_steps": 20,
+  "protocol": "Synthetic FP32 BCE forward/backward/AdamW; excludes validation and loading",
+  "results": [
+    {
+      "config": "configs/base.yaml",
+      "model": {
+        "arch": "unet",
+        "encoder": "resnet34",
+        "encoder_weights": "imagenet",
+        "classes": 1
+      },
+      "parameters": 24436369,
+      "step_seconds": [
+        1.937573600007454,
+        1.9034398999938276,
+        1.8742758000153117,
+        1.8920680000155699,
+        1.9684133999980986,
+        1.943161000002874,
+        1.9054709000047296,
+        1.9487576999817975,
+        1.9201990999863483,
+        1.927017000009073,
+        1.9181456999795046,
+        1.9245401000080165,
+        1.9109575999900699,
+        1.939741000009235,
+        1.9675036999979056,
+        1.8985564000031445,
+        1.926045799977146,
+        1.8871537999948487,
+        1.8660594999964815,
+        1.931590199994389
+      ],
+      "mean_step_seconds": 1.9195335099982913
+    },
+    {
+      "config": "configs/cpu_light.yaml",
+      "model": {
+        "arch": "unet",
+        "encoder": "resnet18",
+        "encoder_weights": "imagenet",
+        "decoder_channels": [
+          128,
+          64,
+          32,
+          16,
+          8
+        ],
+        "classes": 1
+      },
+      "parameters": 12458025,
+      "step_seconds": [
+        0.9278632999921683,
+        0.9470753999776207,
+        0.9528247999842279,
+        0.9525089999951888,
+        0.9629803999850992,
+        0.933065200020792,
+        0.9130126000090968,
+        0.936386700021103,
+        0.9015735999855679,
+        0.9413751999964006,
+        0.9004286999988835,
+        0.9294195999973454,
+        0.9523888999829069,
+        0.9242627999919932,
+        0.9488582999911159,
+        0.9519902000029106,
+        0.9469639000017196,
+        0.9241047999821603,
+        0.947274500009371,
+        0.9344602999917697
+      ],
+      "mean_step_seconds": 0.936440909995872
+    }
+  ]
+}
