@@ -78,10 +78,13 @@ CI uses synthetic images, random encoder weights and a one-batch training run.
 To launch a hidden background process on Windows PowerShell:
 
 ```powershell
-.\scripts\start_training.ps1 -Config configs/cpu_light.yaml -RunName cpu_light_bce_256
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File scripts/start_training.ps1 -Config configs/cpu_light.yaml -RunName cpu_light_bce_256
 ```
 
-The launcher uses `.venv/Scripts/python.exe`. `--keep-awake` prevents automatic
+`RemoteSigned` applies only to this PowerShell process and allows the local launcher
+on Windows installations with the default restricted script policy; it does not
+change the saved execution policy. The launcher uses `.venv/Scripts/python.exe`.
+`--keep-awake` prevents automatic
 system idle sleep while training on Windows and releases the request when the
 process exits; it does not change saved system power settings. Keep the laptop
 plugged in and its lid open. Manual shutdown/sleep still interrupts training.
