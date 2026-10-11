@@ -180,9 +180,9 @@ threshold comes exclusively from the shared training split; see
 Section 2 of [`docs/report_1.tex`](docs/report_1.tex) contains the verified
 dataset preparation, actual split counts, and train-only threshold after excluding
 `metal_nut/flip`. Its numbers come from the committed CSV/JSON results. It
-distinguishes implemented statistics and leakage checks from the planned training
-transforms; `src/data.py` is still empty. The histogram is available as a separate
-artifact to keep the report compact.
+distinguishes the statistics and leakage checks completed in Stage 1 from the
+training transforms implemented in Stage 2. The histogram is available as a
+separate artifact to keep the report compact.
 
 With an existing LaTeX installation, build the full report from the repository root:
 
@@ -200,8 +200,59 @@ The task owner selected local CPU compute. See [the reproducible protocol](docs/
 for Python 3.11 setup and a full batch-8 U-Net benchmark at 512 and 256 pixels.
 `scripts/smoke_test.py` records step times, peak process RAM and projections for
 both the issue's 582-image reference and the current 550-image train split.
-The training/data/model/evaluation modules in `src/` remain placeholders; the
-standalone smoke test verifies the model independently of that future pipeline.
+The standalone smoke test verifies the model independently of the training pipeline.
+
+## Stage 2 dataset and loaders (issue #24)
+
+`src.data.MVTecSegDataset(split, cfg, train)` reads the fixed manifests in
+`data.splits_dir`, preserving their order in `dataset.records` (`path`, `category`,
+`defect_type`). Relative config paths resolve from the repository root; absolute
+paths are supported. Images are read as RGB, defect masks come from
+`<category>/ground_truth/<defect_type>/<stem>_mask.png`, and good images have zero masks.
+
+Each sample contains contiguous float32 image/mask tensors. Image size comes from
+`train.input_size` (256 by default); mask size is `input_size` in train mode and
+`train.eval_size` (512) in evaluation mode. Images use bilinear resizing and
+ImageNet normalisation. Masks are resized directly from their original resolution
+with nearest-neighbour interpolation and binarised at `> 0`; validation masks are
+never reduced to the model input size first.
+
+Training applies Albumentations horizontal/vertical flips and 90-degree rotations
+jointly to images and masks, plus image-only brightness/contrast limits of 0.1.
+Each transform has probability 0.5. Evaluation has no random transforms.
+`make_loaders(cfg)` returns `(train_loader, val_loader, test_loader)` with the
+configured batch size and worker count. Only train shuffles; the last partial
+batch is retained. Separate seeded generators and worker-specific augmentation
+seeds reproduce complete runs with the same seed, library versions, worker count,
+batch size, and iteration schedule. Augmentations continue to vary across epochs;
+changing the worker count can change their sequence.
+
+On Windows, create and iterate loaders inside an `if __name__ == "__main__":`
+guard when using workers. Synthetic tests exercise the `spawn` worker mode.
+Stage 2 uses train/validation data only; keep the real test loader unconsumed
+until the final comparison.
+
+Generate the report illustration (eight seeded training examples after augmentation):
+
+```sh
+python scripts/show_batch.py --config configs/base.yaml
+```
+
+The output is [`results/s2/data_samples.png`](results/s2/data_samples.png), with
+ground-truth masks in orange. The script reverses ImageNet normalisation for display.
+Data tests run without MVTec files or a GPU:
+
+```sh
+python -m pytest -q tests/test_data.py
+```
+
+All 26 data tests passed locally. A real-data check consumed all 550 training
+images (69 batches) and 118 validation images (15 batches) with four workers,
+checking shapes, finite float32 tensors and binary masks. The real test loader
+was not consumed. [The recorded check](results/s2/data_loading_check.json)
+includes split hashes, settings, versions and diagnostic timings (worker startup
+and tensor checks included, no model). It used Python 3.13 / PyTorch 2.10 locally;
+CI validates the project-pinned Python 3.11 / PyTorch 2.6 environment.
 
 ## Checks
 
