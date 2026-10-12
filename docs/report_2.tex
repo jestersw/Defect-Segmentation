@@ -62,7 +62,7 @@ Input / batch & $256\times256$, batch size 8, 69 steps per epoch \\
 Epochs & at most 60, early stopping on validation Dice with patience 10 \\
 Seed & 42, deterministic algorithms \\
 Hardware & laptop CPU (AMD Ryzen AI 9 HX 370, 31\,GiB RAM), PyTorch 2.6.0 \\
-Training time & \tbd{min per epoch, total time, best epoch} \\
+Training time & Median epoch 1.16 min; total 71.08 min; 60 epochs; best epoch 58 \\
 \bottomrule
 \end{tabularx}
 \caption{Baseline configuration (\texttt{results/runs/cpu\_light\_bce\_256/config.yaml}).}
@@ -88,26 +88,26 @@ Training time & \tbd{min per epoch, total time, best epoch} \\
 \toprule
  & Dice & IoU & Pixel P & Pixel R & Small-defect R & Good FPR \\
 \midrule
-All      & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+All & 0.7085 & 0.5966 & 0.8862 & 0.8574 & 0.5556 & 0.0000 \\
 \midrule
-capsule  & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-hazelnut & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-metal\_nut & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-tile     & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-wood     & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+capsule & 0.4561 & 0.3337 & 0.6898 & 0.5402 & 0.7500 & 0.0000 \\
+hazelnut & 0.8422 & 0.7392 & 0.9435 & 0.9085 & 0.5000 & 0.0000 \\
+metal\_nut & 0.8154 & 0.6955 & 0.7310 & 0.8971 & -- & 0.0000 \\
+tile & 0.8447 & 0.7544 & 0.9264 & 0.8873 & 0.0000 & 0.0000 \\
+wood & 0.7374 & 0.6150 & 0.8757 & 0.7778 & 0.4286 & 0.0000 \\
 \bottomrule
 \end{tabular}
-\caption{BCE baseline on the validation split (118 images), threshold 0.5, predictions upsampled to $512\times512$. Source: \texttt{results/runs/cpu\_light\_bce\_256/metrics\_val.json}.}
+\caption{BCE baseline on the validation split (118 images), threshold 0.5, predictions upsampled to $512\times512$. Source: \texttt{results/runs/cpu\_light\_bce\_256/evaluation/metrics\_val.json}.}
 \label{tab:results}
 \end{table}
 
-\textbf{Threshold sensitivity.} At thresholds 0.3 / 0.5 / 0.7 the pixel recall is \tbd{} / \tbd{} / \tbd{} and the pixel precision \tbd{} / \tbd{} / \tbd{}.
+\textbf{Threshold sensitivity.} At thresholds 0.3 / 0.5 / 0.7 the pixel recall is 0.8979 / 0.8574 / 0.7955 and the pixel precision 0.8458 / 0.8862 / 0.9250. The reported comparison retains threshold 0.5.
 
-\textbf{Interpretation.} \tbd{2--3 sentences: which categories are easy or hard, how small-defect recall compares with overall recall, whether the model predicts defects on good images}
+\textbf{Interpretation.} tile has the highest category Dice and capsule the lowest. Small-defect recall is 0.5556; it is based on only 18 validation components, so a single detection changes it by 5.56 percentage points. Good-image FPR is 0.0000. Dice is averaged over defective images; small recall requires at least 25 percent coverage of a component smaller than 859.28 pixels at 512 resolution. Results are validation-selected and single-seed; the held-out test split remains unused.
 
 \begin{figure}[htbp]
 \centering
-\figfile{results/s2/baseline_examples.png}{0.9\linewidth}
+\figfile{results/runs/cpu_light_bce_256/evaluation/predictions_val.png}{0.9\linewidth}
 \caption{Validation examples: image, ground truth and baseline prediction, including small defects and one good image.}
 \label{fig:examples}
 \end{figure}

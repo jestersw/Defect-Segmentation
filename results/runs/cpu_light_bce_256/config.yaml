@@ -1,0 +1,67 @@
+seed: 42
+data:
+  root: data/mvtec_ad
+  categories:
+  - tile
+  - hazelnut
+  - wood
+  - metal_nut
+  - capsule
+  splits_dir: splits
+  split_ratios:
+  - 0.7
+  - 0.15
+  - 0.15
+  exclude_defect_types:
+  - metal_nut/flip
+  image_size: 512
+  normalize: imagenet
+  cache_images: true
+model:
+  arch: unet
+  encoder: resnet18
+  encoder_weights: imagenet
+  decoder_channels:
+  - 128
+  - 64
+  - 32
+  - 16
+  - 8
+  classes: 1
+loss: bce
+focal:
+  gamma: 2.0
+  alpha: 0.25
+dice_weight: 0.5
+focal_weight: 0.5
+train:
+  device: cpu
+  cpu_threads: 8
+  optimizer: adamw
+  lr: 0.0001
+  weight_decay: 0.0001
+  scheduler: cosine
+  batch_size: 8
+  input_size: 256
+  eval_size: 512
+  ablation_input_size: 512
+  seeds:
+  - 42
+  max_epochs: 60
+  early_stopping_metric: val_dice
+  patience: 10
+  num_workers: 0
+  limit_batches: null
+eval:
+  threshold: 0.5
+  threshold_sweep:
+  - 0.3
+  - 0.5
+  - 0.7
+  small_defect_percentile: 33
+  small_defect_area_px: 859.2800000000001
+  small_detect_coverage: 0.25
+  good_fp_min_component_px: 20
+output:
+  checkpoints_dir: checkpoints
+  results_dir: results
