@@ -18,7 +18,7 @@ selection maximises validation Dice, stopping after 10 epochs without improvemen
 No training images are omitted in the full run. Early stopping is a normal
 completion condition, so a full run can finish before epoch 60.
 
-Measured on this laptop on 2026-10-10 with identical synthetic batches (8 x 3 x
+Measured on this laptop on 2026-10-10 with synthetic batches of identical shape (8 x 3 x
 256 x 256), FP32 BCE+AdamW, 3 warm-ups and 20 measured steps:
 
 | Model | Parameters | Mean step seconds |

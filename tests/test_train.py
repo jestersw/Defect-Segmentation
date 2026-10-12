@@ -12,7 +12,9 @@ from src.evaluate import load_model
 from src.train import run_training
 
 
-def test_cli_writes_artifacts_and_loadable_checkpoint(training_cfg, tmp_path):
+@pytest.mark.parametrize("loss", ["bce", "dice"])
+def test_cli_writes_artifacts_and_loadable_checkpoint(training_cfg, tmp_path, loss):
+    training_cfg["loss"] = loss
     config = tmp_path / "config.yaml"
     config.write_text(yaml.safe_dump(training_cfg))
     subprocess.run([
@@ -51,3 +53,13 @@ def test_early_stopping_preserves_best_checkpoint(training_cfg, monkeypatch):
     assert torch.load(root / "last.pth", weights_only=True)["epoch"] == 3
     with pytest.raises(FileExistsError):
         run_training(training_cfg, "early", limit_batches=1)
+
+
+def test_time_budget_preserves_completed_epoch(training_cfg):
+    training_cfg["loss"] = "dice"
+    training_cfg["train"].update(max_epochs=3, max_seconds=0.001)
+    result = run_training(training_cfg, "budget", limit_batches=1)
+    assert result["stop_reason"] == "time_budget"
+    assert result["epochs_completed"] == 1
+    root = Path(training_cfg["output"]["checkpoints_dir"]) / "budget"
+    assert (root / "best.pth").is_file()

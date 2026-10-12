@@ -22,6 +22,8 @@ class DiceFocalLoss(nn.Module):
 def build_loss(cfg):
     if cfg["loss"] == "bce":
         return nn.BCEWithLogitsLoss()
+    if cfg["loss"] == "dice":
+        return smp.losses.DiceLoss(mode="binary", from_logits=True)
     if cfg["loss"] == "dice_focal":
         return DiceFocalLoss(cfg)
     raise ValueError(f"Unknown loss: {cfg['loss']}")

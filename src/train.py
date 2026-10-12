@@ -206,6 +206,13 @@ def run_training(cfg, run_name, limit_batches=None, keep_awake=False):
             })
             write_json(output / "summary.json", summary)
             for epoch in range(1, cfg["train"]["max_epochs"] + 1):
+                budget = cfg["train"].get("max_seconds")
+                if budget and history:
+                    reserve = max(row["epoch_seconds"] for row in history) * 1.25
+                    if time.perf_counter() - started + reserve >= budget:
+                        summary["stop_reason"] = "time_budget"
+                        print("Stopping before next epoch: time budget reached.", flush=True)
+                        break
                 print(f"Epoch {epoch}/{cfg['train']['max_epochs']}", flush=True)
                 epoch_start = time.perf_counter()
                 lr = optimizer.param_groups[0]["lr"]
@@ -275,7 +282,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "configs/base.yaml")
     parser.add_argument("--run-name", required=True)
-    parser.add_argument("--loss", choices=("bce", "dice_focal"))
+    parser.add_argument("--loss", choices=("bce", "dice", "dice_focal"))
     parser.add_argument("--input-size", type=int)
     parser.add_argument("--max-epochs", type=int)
     parser.add_argument("--limit-batches", type=int)

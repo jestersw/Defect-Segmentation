@@ -4,7 +4,7 @@ import torch
 from src.losses import build_loss
 
 
-@pytest.mark.parametrize("name", ["bce", "dice_focal"])
+@pytest.mark.parametrize("name", ["bce", "dice", "dice_focal"])
 def test_loss_is_finite_and_prefers_correct_logits(training_cfg, name):
     training_cfg["loss"] = name
     criterion = build_loss(training_cfg)
