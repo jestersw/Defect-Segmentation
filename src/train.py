@@ -25,7 +25,7 @@ import psutil
 import torch
 import yaml
 
-from src.data import ROOT, make_loaders, project_path
+from src.data import ROOT, make_loaders
 from src.evaluate import evaluate
 from src.losses import build_loss
 from src.model import build_model
@@ -35,6 +35,10 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 FIELDS = ["epoch", "train_loss", "val_loss", "val_dice", "val_iou", "val_precision",
           "val_recall", "val_small_recall", "val_good_fpr", "lr", "epoch_seconds"]
+
+
+def project_path(value):
+    return ROOT / Path(value)
 
 
 def write_json(path, data):
@@ -165,6 +169,8 @@ def run_training(cfg, run_name, limit_batches=None, keep_awake=False):
     cfg["train"].setdefault("cpu_threads", 8)
     cfg["train"]["limit_batches"] = limit_batches
     validate_config(cfg)
+    # The shared loader uses cfg.seed for shuffle and augmentation.
+    cfg["seed"] = int(cfg["train"]["seeds"][0])
     configure(int(cfg["train"]["seeds"][0]), int(cfg["train"]["cpu_threads"]))
     output = project_path(cfg["output"]["results_dir"]) / "runs" / run_name
     checkpoints = project_path(cfg["output"]["checkpoints_dir"]) / run_name

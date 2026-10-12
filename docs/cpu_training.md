@@ -1,15 +1,15 @@
 # CPU training on the lightweight candidate
 
-Work branch: `s2/cpu-lightweight-training`, created from `origin/main` at `2378ef5`
-after checking a clean working tree and fetching all remote branches on 2026-10-10.
-The initial local branch was `s1/compute-implementation-plan` at `1493443`.
+Work branch: `s2/cpu-lightweight-training`, rebased on main `6139798` (PR #33).
+The agreed baseline in issue #1 is `configs/cpu_light.yaml`: ResNet18,
+ImageNet weights, decoder `[128,64,32,16,8]`, 256px inputs, BCE. Stage 3 condition
+B uses exactly the same configuration with `--loss dice_focal`.
 
-`configs/base.yaml` keeps the team's ResNet34 baseline unchanged. The separate
-`configs/cpu_light.yaml` selects ImageNet-pretrained ResNet18 and U-Net decoder
-channels `[128, 64, 32, 16, 8]`. This is a **different experimental architecture**;
-its quality has not been established as equivalent to ResNet34. Use the same
-architecture and configuration for both BCE and Dice + Focal in a fair loss comparison.
-Do not label its results as the original ResNet34 baseline from issue #28.
+The loader, loader tests, sample script and sample image are inherited from
+moonshine1l's PR #33. Only an optional pre-augmentation image/mask cache is added
+to the loader; cache equivalence is covered separately in `tests/test_data_cache.py`.
+Pre-rebase run artifacts are excluded from the current results and kept in a
+local ignored archive. The exploratory 384px Dice run is not Stage 2 evidence.
 
 Both encoders and decoders are fully fine-tuned. The CPU candidate uses FP32,
 8 computation threads, 1 interop thread, batch 8, 256px inputs, AdamW (lr=1e-4,
@@ -65,8 +65,8 @@ python -m src.train --config configs/cpu_light.yaml --run-name cpu_light_trial_2
 # Full lightweight run; no --limit-batches.
 python -m src.train --config configs/cpu_light.yaml --run-name cpu_light_bce_256
 
-# Original agreed ResNet34 baseline, if needed for comparison/issue #28.
-python -m src.train --config configs/base.yaml --run-name baseline_bce_256
+# Stage 3 condition B: same architecture/resolution/data, change only loss.
+python -m src.train --config configs/cpu_light.yaml --run-name cpu_light_dice_focal_256 --loss dice_focal
 ```
 
 Run names must be unique: existing results/checkpoints are never overwritten.
@@ -116,10 +116,24 @@ The best checkpoint can be evaluated with:
 
 ```bash
 python -m src.evaluate --config results/runs/cpu_light_bce_256/config.yaml --checkpoint checkpoints/cpu_light_bce_256/best.pth --split val
-python scripts/plot_predictions.py --config results/runs/cpu_light_bce_256/config.yaml --checkpoint checkpoints/cpu_light_bce_256/best.pth --split val --output results/runs/cpu_light_bce_256/examples.png
+python -m scripts.plot_predictions --config results/runs/cpu_light_bce_256/config.yaml --checkpoint checkpoints/cpu_light_bce_256/best.pth --split val --output results/runs/cpu_light_bce_256/examples.png
 ```
 
 Commit completed run artifacts, not checkpoints or in-progress logs. Share the
 best checkpoint separately after training completes. Human review and GitHub CI
 remain separate from local tests. No checkpoint upload or issue posting is done
 by the training process.
+
+## Finalize the rebased baseline
+
+After a completed baseline, evaluate only validation and render its examples:
+
+```bash
+python -m src.evaluate --config results/runs/cpu_light_bce_256/config.yaml --checkpoint checkpoints/cpu_light_bce_256/best.pth --split val --output-dir results/runs/cpu_light_bce_256/evaluation
+python -m scripts.plot_predictions --config results/runs/cpu_light_bce_256/config.yaml --checkpoint checkpoints/cpu_light_bce_256/best.pth --split val --count 12 --output results/runs/cpu_light_bce_256/evaluation/predictions_val.png
+python -m scripts.finalize_baseline
+```
+
+The finalizer checks completed-run provenance and fills only Sections 3 and 4 of
+the existing team report. Validation small-defect recall has only 18 components
+in its denominator; report that limitation. It never evaluates test images.

@@ -1,4 +1,4 @@
-# Lightweight candidate; not the ResNet34 baseline and not yet quality-equivalent.
+# Agreed CPU baseline (issue #1); condition B changes only loss to dice_focal.
 seed: 42
 data:
   root: data/mvtec_ad

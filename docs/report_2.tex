@@ -54,8 +54,8 @@ We implemented the data loading pipeline, a U-Net baseline trained with binary c
 \small
 \begin{tabularx}{\linewidth}{lX}
 \toprule
-Model & U-Net (\texttt{segmentation\_models\_pytorch} 0.4.0), ResNet34 encoder with ImageNet weights, 1 output channel (logits) \\
-Parameters & \tbd{number} \\
+Model & U-Net (\texttt{segmentation\_models\_pytorch} 0.4.0), ResNet18 encoder with ImageNet weights, 1 output channel (logits) \\
+Parameters & 12,458,025; decoder channels [128,64,32,16,8] \\
 Loss & \texttt{BCEWithLogitsLoss} \\
 Optimiser & AdamW, learning rate $10^{-4}$, weight decay $10^{-4}$, cosine schedule \\
 Input / batch & $256\times256$, batch size 8, 69 steps per epoch \\
@@ -65,14 +65,16 @@ Hardware & laptop CPU (AMD Ryzen AI 9 HX 370, 31\,GiB RAM), PyTorch 2.6.0 \\
 Training time & \tbd{min per epoch, total time, best epoch} \\
 \bottomrule
 \end{tabularx}
-\caption{Baseline configuration (\texttt{results/runs/baseline\_bce\_256/config.yaml}).}
+\caption{Baseline configuration (\texttt{results/runs/cpu\_light\_bce\_256/config.yaml}).}
 \end{table}
 
-\textbf{Training procedure.} \path{src/train.py} trains the model from \path{configs/base.yaml}, evaluates on the validation split after every epoch and keeps the checkpoint with the highest validation Dice. Per-epoch losses, validation metrics and timings are written to \path{results/runs/baseline_bce_256/history.csv}.
+\textbf{CPU data settings.} Zero loader workers and an optional resized-image cache are used for this laptop run; decoding and augmentation follow the shared loader from PR \#33. The resolved seed is 42 for training and loaders.
+
+\textbf{Training procedure.} \path{src/train.py} trains the model from \path{configs/cpu_light.yaml}, evaluates on the validation split after every epoch and keeps the checkpoint with the highest validation Dice. Per-epoch losses, validation metrics and timings are written to \path{results/runs/cpu_light_bce_256/history.csv}.
 
 \begin{figure}[htbp]
 \centering
-\figfile{results/runs/baseline_bce_256/curves.png}{0.8\linewidth}
+\figfile{results/runs/cpu_light_bce_256/curves.png}{0.8\linewidth}
 \caption{Training and validation loss and validation Dice per epoch.}
 \label{fig:curves}
 \end{figure}
@@ -95,7 +97,7 @@ tile     & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
 wood     & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
 \bottomrule
 \end{tabular}
-\caption{BCE baseline on the validation split (118 images), threshold 0.5, predictions upsampled to $512\times512$. Source: \texttt{results/runs/baseline\_bce\_256/metrics\_val.json}.}
+\caption{BCE baseline on the validation split (118 images), threshold 0.5, predictions upsampled to $512\times512$. Source: \texttt{results/runs/cpu\_light\_bce\_256/metrics\_val.json}.}
 \label{tab:results}
 \end{table}
 
