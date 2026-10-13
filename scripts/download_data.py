@@ -76,7 +76,7 @@ def main():
             parser.error("--archive must point to a complete ZIP or be named mvtec-ad.zip")
         args.archive.parent.mkdir(parents=True, exist_ok=True)
         command = [
-            sys.executable, "-m", "kaggle", "datasets", "download",
+            sys.executable, "-c", "from kaggle.cli import main; main()", "datasets", "download",
             "-d", DATASET, "-p", str(args.archive.parent),
         ]
         print("Downloading ipythonx/mvtec-ad (all categories in the source ZIP).", flush=True)

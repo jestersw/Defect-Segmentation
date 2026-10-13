@@ -59,11 +59,17 @@ class MVTecSegDataset(Dataset):
             A.RandomRotate90(p=0.5),
             A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=0.5),
         ], seed=int(cfg["seed"])) if train else None
+        # Cache only decoded/resized arrays, before augmentation and normalisation.
+        # Do not read the held-out test split when constructing training loaders.
+        self.cache = None
+        if cfg["data"].get("cache_images", False) and split != "test":
+            print(f"Caching {len(self.records)} resized {split} samples...", flush=True)
+            self.cache = [self._read_sample(i) for i in range(len(self.records))]
 
     def __len__(self):
         return len(self.records)
 
-    def __getitem__(self, index):
+    def _read_sample(self, index):
         record = self.records[index]
         image_path = self.root / record["path"]
         image = read_image(image_path)
@@ -80,8 +86,13 @@ class MVTecSegDataset(Dataset):
         mask = cv2.resize(mask, (self.mask_size, self.mask_size),
                           interpolation=cv2.INTER_NEAREST)
         mask = (mask > 0).astype(np.uint8)
+        return image, mask
+
+    def __getitem__(self, index):
+        image, mask = (self.cache[index] if self.cache is not None
+                       else self._read_sample(index))
         if self.transform is not None:
-            augmented = self.transform(image=image, mask=mask)
+            augmented = self.transform(image=image.copy(), mask=mask.copy())
             image, mask = augmented["image"], augmented["mask"]
         image = (image.astype(np.float32) / 255.0 - IMAGENET_MEAN) / IMAGENET_STD
         return (

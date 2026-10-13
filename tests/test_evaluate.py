@@ -105,3 +105,30 @@ def test_missing_threshold_in_config_fails():
     cfg = {"eval": {**CFG["eval"], "small_defect_area_px": None}}
     with pytest.raises(ValueError, match="small_defect_area_px"):
         evaluate(MaskEcho(), loader(), cfg)
+
+
+def test_validation_loss_uses_one_prediction_pass_and_full_size_masks():
+    class CountingEcho(MaskEcho):
+        calls = 0
+
+        def forward(self, x):
+            self.calls += 1
+            return super().forward(x)
+
+    model = CountingEcho().train()
+    result = evaluate(model, loader(mask_size=128), CFG,
+                      criterion=torch.nn.BCEWithLogitsLoss())
+    assert model.calls == 2
+    assert model.training
+    assert 0 <= result["loss"] < 0.01
+    assert result["dice"] == pytest.approx(1)
+
+
+def test_validation_restores_mode_when_loss_fails():
+    def fail(logits, target):
+        raise RuntimeError("synthetic failure")
+
+    model = MaskEcho().train()
+    with pytest.raises(RuntimeError, match="synthetic failure"):
+        evaluate(model, loader(), CFG, criterion=fail)
+    assert model.training
