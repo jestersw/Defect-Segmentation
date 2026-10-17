@@ -1,0 +1,134 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\setlist{nosep,leftmargin=*}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\newcommand{\tbd}{\textcolor{red}{TBD}}
+
+\title{\textbf{Industrial Defect Segmentation on MVTec AD}\\[2pt]\large Stage 3: Second Approach -- Computer Vision 2026}
+
+\date{20 October 2026\\[2pt]\small Repository: \url{https://github.com/jestersw/Defect-Segmentation}}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\section{New Approach}
+
+The second approach keeps the stage 2 model and training setup unchanged and replaces the loss function. The baseline is trained with binary cross-entropy (BCE); condition B is trained with a weighted sum of Dice loss and Focal loss:
+\[
+\mathcal{L}_{B} = 0.5\,\mathcal{L}_{\text{Dice}} + 0.5\,\mathcal{L}_{\text{Focal}}, \qquad
+\mathcal{L}_{\text{Dice}} = 1 - \frac{2\sum_i p_i y_i}{\sum_i p_i + \sum_i y_i}, \qquad
+\mathcal{L}_{\text{Focal}} = -\alpha_t (1 - p_t)^{\gamma} \log p_t ,
+\]
+with $\gamma = 2$ and $\alpha = 0.25$, where $p_i$ is the predicted defect probability and $y_i$ the ground-truth label of pixel $i$.
+
+\section{Motivation}
+
+Defect pixels are a small fraction of each image: the small-defect threshold is 859 pixels, about 0.33\% of a $512\times512$ image. BCE averages the error over all pixels, so the background dominates the loss. In a unit test with a single completely missed $10\times10$ defect on a $512\times512$ mask, BCE is only 0.0039, while Dice + Focal is 0.50.
+
+The Dice term measures overlap with the defect region directly, so it does not depend on how much background surrounds the defect. The Focal term down-weights easy, confidently classified background pixels and concentrates the gradient on hard pixels near defect boundaries. We expect higher pixel recall and small-defect recall than the baseline (0.857 and 0.556), possibly at the cost of more false-positive pixels.
+
+\section{Implementation}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lXX}
+\toprule
+ & Baseline (stage 2) & Condition B (stage 3) \\
+\midrule
+Loss & \texttt{BCEWithLogitsLoss} & $0.5\,$Dice $+\ 0.5\,$Focal ($\gamma=2$, $\alpha=0.25$) \\
+Run name & \texttt{cpu\_light\_bce\_256} & \texttt{cpu\_light\_dice\_focal\_256} \\
+\midrule
+\multicolumn{3}{l}{\textit{Unchanged:} U-Net, ResNet18 encoder (ImageNet), decoder [128, 64, 32, 16, 8], 12.46\,M parameters,} \\
+\multicolumn{3}{l}{$256\times256$ input, $512\times512$ evaluation, AdamW (lr $10^{-4}$, wd $10^{-4}$), cosine schedule, batch 8,} \\
+\multicolumn{3}{l}{at most 60 epochs, early stopping on validation Dice (patience 10), seed 42, same splits and augmentation.} \\
+\bottomrule
+\end{tabularx}
+\caption{Differences between the two conditions (\texttt{configs/cpu\_light.yaml}).}
+\end{table}
+
+Both losses are built by \texttt{build\_loss} in \path{src/losses.py}; condition B is selected with \texttt{--loss dice\_focal} and the override is stored in the saved run config. Dice and Focal come from \texttt{segmentation\_models\_pytorch} 0.4.0 and operate on logits. The Dice term is computed over the whole batch, so batches that contain only good images contribute only through the Focal term. Evaluation code, metrics and the 0.5 threshold are identical for both runs; the test split is still unused.
+
+\section{Initial Results (Validation Split)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+ & Dice & IoU & Pixel P & Pixel R & Small-defect R & Good FPR \\
+\midrule
+BCE (baseline) & 0.709 & 0.597 & 0.886 & 0.857 & 0.556 & 0.000 \\
+Dice + Focal & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Validation split (118 images, 57 good), threshold 0.5, predictions upsampled to $512\times512$. Small-defect recall is computed over 18 components.}
+\label{tab:compare}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{Dice} & \multicolumn{2}{c}{Small-defect R} \\
+Category & BCE & Dice + Focal & BCE & Dice + Focal \\
+\midrule
+capsule & 0.456 & \tbd & 0.750 & \tbd \\
+hazelnut & 0.842 & \tbd & 0.500 & \tbd \\
+metal\_nut & 0.815 & \tbd & -- & -- \\
+tile & 0.845 & \tbd & 0.000 & \tbd \\
+wood & 0.737 & \tbd & 0.429 & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Per-category comparison. Metal nut has no small defects in validation.}
+\end{table}
+
+\textbf{Training.} Condition B: \tbd{} epochs, best epoch \tbd, median epoch \tbd\,min, total \tbd\,min (baseline: 60 epochs, best 58, 1.16\,min, 71\,min).
+
+\textbf{Threshold sensitivity.} At thresholds 0.3 / 0.5 / 0.7 condition B has pixel recall \tbd{} and precision \tbd{} (baseline: 0.898 / 0.857 / 0.796 and 0.846 / 0.886 / 0.925).
+
+\textbf{Comparison.} \tbd
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\linewidth]{curves_dice_focal.png}
+\caption{Condition B: training and validation loss and validation Dice per epoch.}
+\label{fig:curves}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.75\linewidth]{predictions_dice_focal.png}
+\caption{Validation examples: image, ground truth and condition B prediction.}
+\label{fig:examples}
+\end{figure}
+
+\section{Problems and Observations}
+
+\begin{itemize}
+  \item \textbf{Single seed.} Both conditions use seed 42 only; with 18 small components, one detection changes small-defect recall by 5.6 percentage points, so small differences are not conclusive.
+  \item \textbf{Loss values are not comparable.} The two losses have different scales, so only the shared metrics in Table~\ref{tab:compare} are compared, not the loss curves.
+  \item \tbd
+\end{itemize}
+
+\section{Next Steps}
+
+\begin{itemize}
+  \item Restrict flips and rotations for capsule and metal nut and retrain both conditions.
+  \item Retrain the better condition at $512\times512$ for the resolution ablation.
+\end{itemize}
+
+\end{document}
