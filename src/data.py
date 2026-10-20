@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader, Dataset, get_worker_info
 ROOT = Path(__file__).resolve().parents[1]
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+GEOMETRIC_CATEGORIES = frozenset({"tile", "wood", "hazelnut"})
 
 
 def read_image(path, grayscale=False):
@@ -59,6 +60,12 @@ class MVTecSegDataset(Dataset):
             A.RandomRotate90(p=0.5),
             A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=0.5),
         ], seed=int(cfg["seed"])) if train else None
+        # Keep the legacy pipeline and its RNG stream intact when the flag is off.
+        self.photometric_transform = None
+        if train and cfg["data"].get("category_aware_augmentation", False):
+            self.photometric_transform = A.Compose([
+                A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=0.5),
+            ], seed=int(cfg["seed"]))
         # Cache only decoded/resized arrays, before augmentation and normalisation.
         # Do not read the held-out test split when constructing training loaders.
         self.cache = None
@@ -91,8 +98,12 @@ class MVTecSegDataset(Dataset):
     def __getitem__(self, index):
         image, mask = (self.cache[index] if self.cache is not None
                        else self._read_sample(index))
-        if self.transform is not None:
-            augmented = self.transform(image=image.copy(), mask=mask.copy())
+        transform = self.transform
+        if (self.photometric_transform is not None
+                and self.records[index]["category"] not in GEOMETRIC_CATEGORIES):
+            transform = self.photometric_transform
+        if transform is not None:
+            augmented = transform(image=image.copy(), mask=mask.copy())
             image, mask = augmented["image"], augmented["mask"]
         image = (image.astype(np.float32) / 255.0 - IMAGENET_MEAN) / IMAGENET_STD
         return (
@@ -109,6 +120,8 @@ def seed_worker(worker_id):
     dataset = get_worker_info().dataset
     if dataset.transform is not None:
         dataset.transform.set_random_seed(seed)
+    if dataset.photometric_transform is not None:
+        dataset.photometric_transform.set_random_seed(seed)
 
 
 def make_loaders(cfg):

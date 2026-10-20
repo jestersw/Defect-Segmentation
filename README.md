@@ -220,6 +220,16 @@ never reduced to the model input size first.
 Training applies Albumentations horizontal/vertical flips and 90-degree rotations
 jointly to images and masks, plus image-only brightness/contrast limits of 0.1.
 Each transform has probability 0.5. Evaluation has no random transforms.
+For Stage 4, opt in with `data.category_aware_augmentation: true` in a copy of the
+run configuration. This keeps flips and 90-degree rotations for `tile`, `wood`,
+and `hazelnut`; `capsule` and `metal_nut` receive brightness/contrast changes only.
+The same rule applies to good and defective images. Photometric limits and
+probabilities are unchanged, and geometric operations still transform the image
+and mask together. This option works with `data.cache_images` and seeded workers.
+With the flag absent or `false` (the default), the original augmentation sequence
+is preserved for all categories. Keep it off for Stage 3; Stage 4 must retrain
+both BCE and Dice + Focal with the same enabled policy before comparing them.
+
 `make_loaders(cfg)` returns `(train_loader, val_loader, test_loader)` with the
 configured batch size and worker count. Only train shuffles; the last partial
 batch is retained. Separate seeded generators and worker-specific augmentation
