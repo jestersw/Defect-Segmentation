@@ -7,6 +7,7 @@ data:
   exclude_defect_types: [metal_nut/flip]
   image_size: 512
   normalize: imagenet
+  category_aware_augmentation: false  # Opt in for Stage 4; preserve Stage 3 augmentation.
 model:
   arch: unet
   encoder: resnet34
