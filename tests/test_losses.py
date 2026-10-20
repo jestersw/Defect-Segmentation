@@ -1,4 +1,3 @@
-
 import pytest
 import torch
 
@@ -28,7 +27,6 @@ def test_loss_is_finite_and_prefers_correct_logits(training_cfg, name):
 
 def test_unknown_loss_fails(training_cfg):
     cfg = {**training_cfg, "loss": "unknown"}
-
     with pytest.raises(ValueError, match="Unknown loss"):
         build_loss(cfg)
 
@@ -60,9 +58,5 @@ def test_tiny_defect_relative_penalty(training_cfg):
     print(f"Dice+Focal: wrong={df_wrong:.8f}, correct={df_correct:.8f}")
     print(f"Relative ratios: BCE={bce_ratio:.2f}, Dice+Focal={df_ratio:.2f}")
 
-    # BCE averages over all pixels, so the missed tiny defect
-# contributes only a small amount to the total loss.
     assert bce_wrong < 0.01
-
-# Dice + Focal gives a much larger loss for this missed defect.
     assert df_wrong > 0.1
