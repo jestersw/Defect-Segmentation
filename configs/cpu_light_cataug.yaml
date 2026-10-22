@@ -1,4 +1,4 @@
-# Agreed CPU baseline (issue #1); condition B changes only loss to dice_focal.
+# Stage 4: category-aware augmentation enabled; otherwise identical to cpu_light.yaml.
 seed: 42
 data:
   root: data/mvtec_ad

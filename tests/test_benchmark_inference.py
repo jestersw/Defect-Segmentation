@@ -46,41 +46,73 @@ def benchmark_cfg(tmp_path):
     }
 
 
-def test_prepares_only_selected_validation_images_at_512(benchmark_cfg):
+@pytest.mark.parametrize("saved_size,override,expected_size", [
+    (256, None, 256), (512, None, 512), (256, 128, 128),
+])
+def test_prepares_validation_images_at_selected_size(
+        benchmark_cfg, saved_size, override, expected_size):
+    benchmark_cfg["train"]["input_size"] = saved_size
     original = deepcopy(benchmark_cfg)
-    images, paths = benchmark.prepare_images(benchmark_cfg, 50)
+    images, paths = benchmark.prepare_images(benchmark_cfg, 50, input_size=override)
     assert benchmark_cfg == original
     assert len(images) == len(paths) == len(set(paths)) == 55
-    assert all(image.shape == (1, 3, 512, 512) and image.dtype == torch.float32
+    assert all(image.shape == (1, 3, expected_size, expected_size) and image.dtype == torch.float32
                and image.device.type == "cpu" and image.is_contiguous() for image in images)
     assert images[0][0, 0, 0, 0].item() == pytest.approx((0 - 0.485) / 0.229)
     assert images[0][0, 2, 0, 0].item() == pytest.approx((160 / 255 - 0.406) / 0.225)
     assert paths[5] == "tile/test/good/005.png"
 
 
-def test_tiny_model_warmup_threads_eval_mode_and_statistics(monkeypatch):
+@pytest.mark.parametrize("input_size", [256, 512])
+def test_timing_includes_logit_upsampling_but_excludes_warmup(monkeypatch, input_size):
     model = TinyModel().train()
-    image = torch.zeros(1, 3, 512, 512)
-    # Fifty forward durations of 1..50 ms. Warm-up must not consult the clock.
+    image = torch.zeros(1, 3, input_size, input_size)
+    # Fifty pipeline durations of 1..50 ms. Verify both operations lie between clock calls.
     ticks = iter(value for milliseconds in range(1, 51) for value in (0, milliseconds * 1_000_000))
-    monkeypatch.setattr(benchmark.time, "perf_counter_ns", lambda: next(ticks))
+    events = []
+    original_forward, original_interpolate = model.forward, benchmark.F.interpolate
+
+    def forward(image):
+        events.append("forward")
+        return original_forward(image)
+
+    def interpolate(logits, *, size, mode, align_corners):
+        events.append("resize")
+        assert logits.shape[-2:] == (input_size, input_size)
+        assert size == (512, 512) and mode == "bilinear" and align_corners is False
+        return original_interpolate(logits, size=size, mode=mode, align_corners=align_corners)
+
+    def clock():
+        events.append("clock")
+        return next(ticks)
+
+    monkeypatch.setattr(model, "forward", forward)
+    monkeypatch.setattr(benchmark.F, "interpolate", interpolate)
+    monkeypatch.setattr(benchmark.time, "perf_counter_ns", clock)
     threads = torch.get_num_threads()
-    result = benchmark.benchmark_model(model, [image] * 55)
+    result = benchmark.benchmark_model(model, [image] * 55, eval_size=512)
     assert model.training and torch.get_num_threads() == threads
     assert len(model.calls) == 55
     assert all(c == {"training": False, "grad": False, "inference": True,
-                     "threads": 8, "shape": (1, 3, 512, 512)} for c in model.calls)
+                     "threads": 8, "shape": (1, 3, input_size, input_size)} for c in model.calls)
+    operations = ["forward", "resize"] if input_size != 512 else ["forward"]
+    assert events == operations * 5 + (["clock"] + operations + ["clock"]) * 50
     assert result["per_image_ms"] == list(range(1, 51))
     assert result["mean_ms"] == result["median_ms"] == 25.5
     assert result["p95_ms"] == pytest.approx(47.55)
     assert next(ticks, None) is None
 
 
-def test_loads_tiny_checkpoint_and_writes_cli_json(benchmark_cfg, tmp_path, monkeypatch):
+@pytest.mark.parametrize("saved_size,override,eval_size", [
+    (256, None, 512), (512, None, 512), (256, 128, 512), (256, None, 256),
+])
+def test_loads_tiny_checkpoint_and_writes_cli_json(
+        benchmark_cfg, tmp_path, monkeypatch, saved_size, override, eval_size):
     import yaml
 
     import src.model
 
+    benchmark_cfg["train"].update(input_size=saved_size, eval_size=eval_size)
     original = TinyModel()
     checkpoint = tmp_path / "best.pth"
     torch.save({"model_state_dict": original.state_dict()}, checkpoint)
@@ -96,9 +128,11 @@ def test_loads_tiny_checkpoint_and_writes_cli_json(benchmark_cfg, tmp_path, monk
     config = tmp_path / "config.yaml"
     config.write_text(yaml.safe_dump(benchmark_cfg))
     output = tmp_path / "output/inference.json"
-    monkeypatch.setattr(benchmark.sys, "argv", ["benchmark_inference.py", "--config", str(config),
-                                              "--checkpoint", str(checkpoint),
-                                              "--output", str(output)])
+    arguments = ["benchmark_inference.py", "--config", str(config),
+                 "--checkpoint", str(checkpoint), "--output", str(output)]
+    if override is not None:
+        arguments.extend(["--input-size", str(override)])
+    monkeypatch.setattr(benchmark.sys, "argv", arguments)
     # CLI normally runs in a fresh process; keep the test runner's global pools intact.
     interop = []
     monkeypatch.setattr(torch, "set_num_interop_threads", interop.append)
@@ -110,6 +144,8 @@ def test_loads_tiny_checkpoint_and_writes_cli_json(benchmark_cfg, tmp_path, monk
     report = json.loads(output.read_text())
     assert interop == [1]
     assert len(loaded) == 1 and len(loaded[0].calls) == 55
+    expected_size = saved_size if override is None else override
+    assert all(call["shape"] == (1, 3, expected_size, expected_size) for call in loaded[0].calls)
     assert all(torch.equal(weight, loaded[0].state_dict()[name])
                for name, weight in original.state_dict().items())
     assert report["checkpoint_sha256"] == benchmark.file_sha256(checkpoint)
@@ -118,7 +154,8 @@ def test_loads_tiny_checkpoint_and_writes_cli_json(benchmark_cfg, tmp_path, monk
         Path(benchmark_cfg["data"]["splits_dir"]) / "val.txt")
     assert report["source_config"] == benchmark_cfg
     assert report["protocol"]["split"] == "val"
-    assert report["protocol"]["input_size"] == report["protocol"]["eval_size"] == 512
+    assert report["protocol"]["input_size"] == expected_size
+    assert report["protocol"]["eval_size"] == eval_size
     assert report["protocol"]["batch_size"] == 1
     assert report["protocol"]["warmup_images"] == len(report["warmup_paths"]) == 5
     assert report["protocol"]["timed_images"] == len(report["timed_paths"]) == 50
@@ -138,9 +175,10 @@ def test_rejects_too_few_or_unavailable_images(benchmark_cfg, number):
         benchmark.prepare_images(benchmark_cfg, number)
 
 
-def test_rejects_wrong_evaluation_resolution(benchmark_cfg):
-    benchmark_cfg["train"]["eval_size"] = 256
-    with pytest.raises(ValueError, match="eval_size=512"):
+@pytest.mark.parametrize("name", ["input_size", "eval_size"])
+def test_rejects_invalid_resolution(benchmark_cfg, name):
+    benchmark_cfg["train"][name] = 0
+    with pytest.raises(ValueError, match=f"{name} must be a positive integer"):
         benchmark.prepare_images(benchmark_cfg, 50)
 
 
@@ -152,11 +190,11 @@ def test_restores_state_after_model_failure():
     model = BrokenModel().train()
     threads = torch.get_num_threads()
     with pytest.raises(RuntimeError, match="broken forward"):
-        benchmark.benchmark_model(model, [torch.zeros(1, 3, 512, 512)] * 55)
+        benchmark.benchmark_model(model, [torch.zeros(1, 3, 256, 256)] * 55, eval_size=512)
     assert model.training and torch.get_num_threads() == threads
 
 
-@pytest.mark.parametrize("shape", [(2, 3, 512, 512), (1, 3, 256, 256)])
+@pytest.mark.parametrize("shape", [(2, 3, 512, 512), (1, 3, 256, 128)])
 def test_rejects_inputs_outside_protocol(shape):
-    with pytest.raises(ValueError, match="512, 512"):
-        benchmark.benchmark_model(TinyModel(), [torch.zeros(shape)] * 55)
+    with pytest.raises(ValueError, match="1, 3, s, s"):
+        benchmark.benchmark_model(TinyModel(), [torch.zeros(shape)] * 55, eval_size=512)

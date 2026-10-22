@@ -100,28 +100,37 @@ python -m src.train --config configs/cpu_light_cataug.yaml --run-name cpu_light_
 python -m src.train --config configs/cpu_light_cataug.yaml --run-name cpu_light_dice_focal_256_cataug --loss dice_focal
 ```
 
-## CPU inference benchmark at 512 pixels
+## CPU inference benchmark at the run's input and evaluation resolutions
 
 After training, use the **saved run configuration** and its matching best checkpoint:
 
 ```bash
-python scripts/benchmark_inference.py --config results/runs/cpu_light_bce_256_cataug/config.yaml --checkpoint checkpoints/cpu_light_bce_256_cataug/best.pth --output results/runs/cpu_light_bce_256_cataug/inference_cpu_512.json
+python scripts/benchmark_inference.py --config results/runs/cpu_light_bce_256_cataug/config.yaml --checkpoint checkpoints/cpu_light_bce_256_cataug/best.pth --output results/runs/cpu_light_bce_256_cataug/inference_cpu.json
 ```
 
 Use the corresponding paths for the Dice + Focal run or an earlier baseline.
 The script loads checkpoint weights offline and uses only the validation manifest.
-It feeds the model actual **512 x 512 inputs**, even if the saved run trained at 256.
-This measures 512-pixel inference cost; it does not claim that the checkpoint was
-trained at 512 or report segmentation quality at that resolution.
+Model input size defaults to `train.input_size` in the saved config. Runs A-D
+therefore use **256 x 256 inputs**, followed by bilinear upsampling of logits to
+`train.eval_size` (512), with `align_corners=False`, matching `src/evaluate.py`.
+A 512-input ablation checkpoint automatically uses 512 inputs from its own saved
+config; resizing is skipped when logits already match the evaluation size.
+Use `--input-size 512` only for an explicit input-resolution override, and select
+a distinct output file for that experiment. JSON records the effective
+`protocol.input_size` and `protocol.eval_size`; `source_config` remains the original
+saved configuration. Timing an override does not imply the model was trained at
+that resolution, and this benchmark does not report segmentation quality.
 
 The protocol is FP32 on CPU, batch 1, eight computation threads, one interop thread,
 five warm-up images and 50 timed images by default. `--num-images N` allows larger
 samples with `N >= 50`; the manifest must have at least `N + 5` distinct entries.
 The first five entries warm up the model, then the next N are measured in manifest
 order without shuffling or augmentation. All selected inputs are prepared in RAM
-before timing. The timing covers only the synchronous forward pass to logits in
-evaluation/inference mode. It excludes checkpoint loading, disk I/O, resizing,
-normalisation, sigmoid, thresholding and metric calculations.
+before timing. The timed region includes the synchronous model forward pass and
+bilinear resizing of logits to the evaluation resolution, when needed. Both steps
+run in evaluation/inference mode, including during warm-up. Timing excludes
+checkpoint loading, disk I/O, input image resizing, normalisation, sigmoid,
+thresholding and metric calculations.
 
 JSON includes `mean_ms`, `median_ms`, `p95_ms` (linear percentile), every measured
 image's duration and path, warm-up paths, CPU/RAM/software details, thread settings,

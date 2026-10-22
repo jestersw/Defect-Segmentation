@@ -233,8 +233,9 @@ both BCE and Dice + Focal with the same enabled policy before comparing them.
 Use `configs/cpu_light_cataug.yaml` for these Stage 4 runs; it differs from
 `configs/cpu_light.yaml` only in this flag. See the
 [training and CPU inference benchmark instructions](docs/cpu_training.md)
-for run commands and `scripts/benchmark_inference.py` (512-pixel validation inputs,
-batch 1, eight CPU threads, five warm-ups and at least 50 timed images).
+for run commands and `scripts/benchmark_inference.py` (saved input size, optionally
+overridden with `--input-size`, and timed bilinear logit resizing to the evaluation
+size; batch 1, eight CPU threads, five warm-ups and at least 50 timed images).
 
 `make_loaders(cfg)` returns `(train_loader, val_loader, test_loader)` with the
 configured batch size and worker count. Only train shuffles; the last partial

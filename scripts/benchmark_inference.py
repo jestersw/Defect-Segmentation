@@ -1,4 +1,4 @@
-"""Forward-only CPU latency on validation images at 512 px (Stage 5 protocol)."""
+"""CPU latency for model forward plus logit resizing to the evaluation resolution."""
 
 import argparse
 import hashlib
@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import psutil
 import torch
+import torch.nn.functional as F
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +25,6 @@ if str(ROOT) not in sys.path:
 from src.data import MVTecSegDataset  # noqa: E402
 from src.evaluate import load_model  # noqa: E402
 
-EVAL_SIZE = 512
 CPU_THREADS = 8
 WARMUP_IMAGES = 5
 MIN_TIMED_IMAGES = 50
@@ -35,14 +35,21 @@ def file_sha256(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def prepare_images(cfg, num_images):
+def positive_size(value, name):
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
+
+
+def prepare_images(cfg, num_images, input_size=None):
     """Load only the selected validation samples, outside the timed region."""
     if num_images < MIN_TIMED_IMAGES:
         raise ValueError("At least 50 timed images are required")
-    if cfg["train"]["eval_size"] != EVAL_SIZE:
-        raise ValueError("The inference benchmark requires train.eval_size=512")
+    positive_size(cfg["train"]["eval_size"], "eval_size")
     benchmark_cfg = deepcopy(cfg)
-    benchmark_cfg["train"]["input_size"] = EVAL_SIZE
+    benchmark_cfg["train"]["input_size"] = positive_size(
+        cfg["train"]["input_size"] if input_size is None else input_size, "input_size"
+    )
     benchmark_cfg["data"]["cache_images"] = False
     dataset = MVTecSegDataset("val", benchmark_cfg, train=False)
     count = WARMUP_IMAGES + num_images
@@ -53,14 +60,26 @@ def prepare_images(cfg, num_images):
     return images, paths
 
 
-def benchmark_model(model, images):
-    """Time synchronous FP32 CPU forward passes; leave decoding/postprocessing out."""
+def forward_logits(model, image, eval_size):
+    """Match src.evaluate: resize logits with bilinear interpolation before sigmoid."""
+    logits = model(image)
+    if logits.shape[-2:] != (eval_size, eval_size):
+        logits = F.interpolate(logits, size=(eval_size, eval_size),
+                               mode="bilinear", align_corners=False)
+    return logits
+
+
+def benchmark_model(model, images, eval_size):
+    """Time synchronous FP32 CPU forward and logit resizing; exclude sigmoid/metrics."""
+    positive_size(eval_size, "eval_size")
     if len(images) < WARMUP_IMAGES + MIN_TIMED_IMAGES:
         raise ValueError("Need five warm-up images and at least 50 timed images")
+    input_size = images[0].shape[-1]
     for image in images:
-        if (image.shape != (1, 3, EVAL_SIZE, EVAL_SIZE) or image.dtype != torch.float32
+        if (image.shape != (1, 3, input_size, input_size) or input_size <= 0
+                or image.dtype != torch.float32
                 or image.device.type != "cpu" or not image.is_contiguous()):
-            raise ValueError("Inputs must be contiguous float32 CPU tensors [1, 3, 512, 512]")
+            raise ValueError("Inputs must be matching contiguous float32 CPU tensors [1, 3, s, s]")
         if not torch.isfinite(image).all():
             raise ValueError("Input contains non-finite values")
     model = model.to(device="cpu", dtype=torch.float32)
@@ -73,13 +92,13 @@ def benchmark_model(model, images):
         with torch.inference_mode():
             for index, image in enumerate(images):
                 if index < WARMUP_IMAGES:
-                    logits = model(image)
+                    logits = forward_logits(model, image, eval_size)
                 else:
                     start = time.perf_counter_ns()
-                    logits = model(image)
+                    logits = forward_logits(model, image, eval_size)
                     durations.append((time.perf_counter_ns() - start) / 1_000_000)
-                # Validation is outside the timed forward; do not report invalid outputs.
-                if logits.shape != (1, 1, EVAL_SIZE, EVAL_SIZE):
+                # Validation is outside the timed pipeline; do not report invalid outputs.
+                if logits.shape != (1, 1, eval_size, eval_size):
                     raise ValueError(f"Unexpected logits shape: {tuple(logits.shape)}")
                 if logits.device.type != "cpu" or not torch.isfinite(logits).all():
                     raise ValueError("Expected finite CPU logits")
@@ -121,12 +140,13 @@ def environment():
     }
 
 
-def run_benchmark(cfg, checkpoint, num_images=MIN_TIMED_IMAGES):
+def run_benchmark(cfg, checkpoint, num_images=MIN_TIMED_IMAGES, input_size=None):
     # Fail before image loading if the checkpoint is missing; never download encoder weights.
     checkpoint_hash = file_sha256(checkpoint)
-    images, paths = prepare_images(cfg, num_images)
+    images, paths = prepare_images(cfg, num_images, input_size)
     model = load_model(cfg, checkpoint)
-    timing = benchmark_model(model, images)
+    eval_size = cfg["train"]["eval_size"]
+    timing = benchmark_model(model, images, eval_size)
     try:
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT,
                                          text=True, stderr=subprocess.DEVNULL).strip()
@@ -138,10 +158,11 @@ def run_benchmark(cfg, checkpoint, num_images=MIN_TIMED_IMAGES):
         "source_config": deepcopy(cfg),
         "protocol": {
             "split": "val", "device": "cpu", "dtype": "float32", "batch_size": 1,
-            "input_size": EVAL_SIZE, "eval_size": EVAL_SIZE,
+            "input_size": images[0].shape[-1], "eval_size": eval_size,
             "warmup_images": WARMUP_IMAGES, "timed_images": num_images,
-            "scope": "Model forward to logits only; inputs preloaded in RAM. Excludes decoding, "
-                     "resizing, normalisation, checkpoint loading, sigmoid, thresholding "
+            "scope": "Model forward plus bilinear logit resizing to eval_size when needed "
+                     "(align_corners=False); inputs preloaded in RAM. Excludes decoding, "
+                     "input resizing, normalisation, checkpoint loading, sigmoid, thresholding "
                      "and metrics.",
             "selection": "First five validation entries warm up; next N distinct entries timed",
             "percentile_method": "linear",
@@ -158,17 +179,21 @@ def main():
     parser.add_argument("--config", type=Path, required=True, help="Saved run configuration")
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--num-images", type=int, default=MIN_TIMED_IMAGES)
+    parser.add_argument("--input-size", type=int,
+                        help="Override model input size (default: saved train.input_size)")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.num_images < MIN_TIMED_IMAGES:
         parser.error("--num-images must be at least 50")
+    if args.input_size is not None and args.input_size <= 0:
+        parser.error("--input-size must be positive")
     if args.output.resolve() in (args.config.resolve(), args.checkpoint.resolve()):
         parser.error("--output must differ from the configuration and checkpoint paths")
     cfg = yaml.safe_load(args.config.read_text(encoding="utf-8"))
     torch.set_num_threads(CPU_THREADS)
     torch.set_num_interop_threads(1)
     torch.manual_seed(int(cfg["seed"]))
-    report = run_benchmark(cfg, args.checkpoint, args.num_images)
+    report = run_benchmark(cfg, args.checkpoint, args.num_images, args.input_size)
     report["config_sha256"] = file_sha256(args.config)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n", encoding="utf-8")
