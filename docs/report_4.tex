@@ -1,0 +1,129 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\setlist{nosep,leftmargin=*}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\newcommand{\tbd}{\textcolor{red}{TBD}}
+
+\title{\textbf{Industrial Defect Segmentation on MVTec AD}\\[2pt]\large Stage 4: Progress Check -- Computer Vision 2026}
+
+\date{27 October 2026\\[2pt]\small Repository: \url{https://github.com/jestersw/Defect-Segmentation}}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\section{Completed Experiments}
+
+All runs use the same U-Net with a ResNet18 encoder (ImageNet weights, decoder [128, 64, 32, 16, 8], 12.46\,M parameters), $256\times256$ training input, $512\times512$ evaluation, AdamW (lr $10^{-4}$, weight decay $10^{-4}$), cosine schedule, batch 8, at most 60 epochs with early stopping on validation Dice (patience 10), seed 42 and the same data splits (550 / 118 / 118). Each run differs from the baseline in one or two factors: the loss and the augmentation policy. All runs were trained on the same laptop CPU, and the test split is still unused.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{llllX}
+\toprule
+Run & Loss & Augmentation & Stage & Status \\
+\midrule
+A: \texttt{cpu\_light\_bce\_256} & BCE & default & 2 & completed, 60 epochs (best 58) \\
+B: \texttt{cpu\_light\_dice\_focal\_256} & Dice + Focal & default & 3 & completed, early stop at 58 (best 48) \\
+C: \texttt{cpu\_light\_bce\_256\_cataug} & BCE & category-aware & 4 & \tbd \\
+D: \texttt{cpu\_light\_dice\_focal\_256\_cataug} & Dice + Focal & category-aware & 4 & \tbd \\
+\bottomrule
+\end{tabularx}
+\caption{Completed runs. Dice + Focal is $0.5\,$Dice $+\ 0.5\,$Focal ($\gamma=2$, $\alpha=0.25$).}
+\label{tab:runs}
+\end{table}
+
+\textbf{Augmentation policies.} The default policy applies horizontal and vertical flips, $90^\circ$ rotations and brightness/contrast changes (each with probability 0.5) to all categories. The category-aware policy (\texttt{data.category\_aware\_augmentation}, \path{configs/cpu_light_cataug.yaml}) keeps the geometric transforms for tile, wood and hazelnut, while capsule and metal nut receive only brightness and contrast changes, because flips and rotations mirror the printed capsule label and the metal nut orientation.
+
+\textbf{Supporting tools.} \tbd{} (per-image metrics, side-by-side prediction plots, CPU inference benchmark).
+
+\section{Preliminary Comparison (Validation Split)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Run & Dice & IoU & Pixel P & Pixel R & Small-defect R & Good FPR \\
+\midrule
+A: BCE & 0.709 & 0.597 & 0.886 & 0.857 & 0.556 & 0.000 \\
+B: Dice + Focal & 0.751 & 0.653 & 0.912 & 0.864 & 0.667 & 0.000 \\
+C: BCE, cat.-aware & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+D: Dice + Focal, cat.-aware & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Validation split (118 images, 57 good), threshold 0.5, predictions upsampled to $512\times512$. Dice and IoU are averaged over defective images; pixel precision and recall are pooled over all pixels. A small defect (component below 859 px) counts as detected when at least 25\% of its area is predicted; there are 18 such components. Good FPR is the share of good images with a predicted component of at least 20 px.}
+\label{tab:compare}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{4}{c}{Dice} \\
+Category & A & B & C & D \\
+\midrule
+capsule & 0.456 & 0.480 & \tbd & \tbd \\
+hazelnut & 0.842 & 0.875 & \tbd & \tbd \\
+metal\_nut & 0.815 & 0.859 & \tbd & \tbd \\
+tile & 0.845 & 0.906 & \tbd & \tbd \\
+wood & 0.737 & 0.799 & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Per-category Dice. Only capsule and metal nut are affected by the category-aware policy; changes in other categories come from training with a different random sequence.}
+\label{tab:category}
+\end{table}
+
+\textbf{Effect of the loss.} With the default policy, Dice + Focal improves Dice from 0.709 to 0.751 and small-defect recall from 10 to 12 of 18 components, with Good FPR unchanged. With the category-aware policy: \tbd.
+
+\textbf{Effect of the augmentation policy.} \tbd
+
+\textbf{Training time.} Median epoch: A 69.4\,s, B 73.2\,s, C \tbd, D \tbd.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{compare_predictions.png}
+\caption{The same validation images: ground truth and predictions of \tbd{} and \tbd.}
+\label{fig:compare}
+\end{figure}
+
+\section{Observations}
+
+\begin{itemize}
+  \item \textbf{Threshold sensitivity.} Between thresholds 0.3 and 0.7, Dice changes by 0.146 for A and 0.013 for B on the validation split; C and D: \tbd.
+  \item \textbf{Capsule.} In stage 3, capsule pixel recall dropped from 0.540 (A) to 0.327 (B) while Dice rose slightly. Per-image analysis: \tbd.
+  \item \textbf{Tile small defects.} The small tile defect in validation is missed by A and B; C and D: \tbd.
+  \item \textbf{Failure cases.} \tbd
+  \item \textbf{Limitations.} Single seed per configuration; small-defect recall is based on 18 components, so one detection changes it by 5.6 percentage points. Differences of a few hundredths of Dice between runs are not conclusive.
+\end{itemize}
+
+\section{Remaining Work}
+
+\begin{itemize}
+  \item Select the final configuration from runs A--D on the validation split.
+  \item Resolution ablation: retrain the final configuration at $512\times512$ (2-epoch timing trial: \tbd{} per epoch).
+  \item Evaluate the final model once on the test split (118 images).
+  \item Measure CPU inference time per image at $512\times512$.
+  \item Document at least three failure cases with images.
+  \item Prepare the final report and the demo.
+\end{itemize}
+
+\textbf{Timeline.}
+\begin{itemize}
+    \item 03 Nov: final metrics on the test split, runtime and $\ge 3$ failure cases
+    \item 10 Nov: final submission and demo
+\end{itemize}
+
+\end{document}
