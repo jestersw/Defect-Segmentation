@@ -89,6 +89,49 @@ system idle sleep while training on Windows and releases the request when the
 process exits; it does not change saved system power settings. Keep the laptop
 plugged in and its lid open. Manual shutdown/sleep still interrupts training.
 
+## Stage 4 category-aware runs
+
+`configs/cpu_light_cataug.yaml` is identical to `configs/cpu_light.yaml` except
+`data.category_aware_augmentation: true`. Both losses must use this same configuration
+for the Stage 4 comparison; the Stage 3 configuration remains unchanged.
+
+```bash
+python -m src.train --config configs/cpu_light_cataug.yaml --run-name cpu_light_bce_256_cataug
+python -m src.train --config configs/cpu_light_cataug.yaml --run-name cpu_light_dice_focal_256_cataug --loss dice_focal
+```
+
+## CPU inference benchmark at 512 pixels
+
+After training, use the **saved run configuration** and its matching best checkpoint:
+
+```bash
+python scripts/benchmark_inference.py --config results/runs/cpu_light_bce_256_cataug/config.yaml --checkpoint checkpoints/cpu_light_bce_256_cataug/best.pth --output results/runs/cpu_light_bce_256_cataug/inference_cpu_512.json
+```
+
+Use the corresponding paths for the Dice + Focal run or an earlier baseline.
+The script loads checkpoint weights offline and uses only the validation manifest.
+It feeds the model actual **512 x 512 inputs**, even if the saved run trained at 256.
+This measures 512-pixel inference cost; it does not claim that the checkpoint was
+trained at 512 or report segmentation quality at that resolution.
+
+The protocol is FP32 on CPU, batch 1, eight computation threads, one interop thread,
+five warm-up images and 50 timed images by default. `--num-images N` allows larger
+samples with `N >= 50`; the manifest must have at least `N + 5` distinct entries.
+The first five entries warm up the model, then the next N are measured in manifest
+order without shuffling or augmentation. All selected inputs are prepared in RAM
+before timing. The timing covers only the synchronous forward pass to logits in
+evaluation/inference mode. It excludes checkpoint loading, disk I/O, resizing,
+normalisation, sigmoid, thresholding and metric calculations.
+
+JSON includes `mean_ms`, `median_ms`, `p95_ms` (linear percentile), every measured
+image's duration and path, warm-up paths, CPU/RAM/software details, thread settings,
+the source config, and SHA-256 fingerprints of the config, checkpoint and validation
+manifest. These are per-image model latencies, not end-to-end application latency.
+Run comparisons on the same machine and environment, without simultaneous training
+or other heavy workloads; timings from the tiny random-weight unit test are not
+experiment results. Commit completed benchmark JSON alongside run artifacts;
+checkpoints remain ignored. This script never loads training or test images.
+
 ## Monitor
 
 ```powershell

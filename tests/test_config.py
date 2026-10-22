@@ -23,3 +23,11 @@ def test_values_are_valid():
     assert 0.0 < cfg["eval"]["threshold"] < 1.0
     assert cfg["train"]["batch_size"] > 0
     assert cfg["train"]["lr"] > 0
+
+
+def test_category_aware_run_changes_only_augmentation_flag():
+    baseline = yaml.safe_load((CONFIG.parent / "cpu_light.yaml").read_text())
+    category_aware = yaml.safe_load((CONFIG.parent / "cpu_light_cataug.yaml").read_text())
+    assert category_aware["data"].pop("category_aware_augmentation") is True
+    assert baseline["data"].pop("category_aware_augmentation", False) is False
+    assert category_aware == baseline
