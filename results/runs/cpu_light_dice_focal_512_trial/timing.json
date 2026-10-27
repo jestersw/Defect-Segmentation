@@ -1,0 +1,9 @@
+{
+  "epoch_seconds": [
+    302.06713630002923,
+    302.5894601000473
+  ],
+  "median_epoch_seconds": 302.32829820003826,
+  "includes": "training, validation, checkpoint writes and plotting",
+  "test_evaluated": false
+}
