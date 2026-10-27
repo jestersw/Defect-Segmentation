@@ -1,4 +1,4 @@
-
+# ruff: noqa: E402
 """Export per-image segmentation metrics for a trained checkpoint."""
 
 import argparse

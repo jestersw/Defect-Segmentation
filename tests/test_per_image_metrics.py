@@ -4,7 +4,6 @@
 import csv
 import math
 
-import numpy as np
 import pytest
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -16,7 +15,6 @@ from scripts.per_image_metrics import (
     write_csv,
 )
 from src.evaluate import evaluate, metric_settings, predict_probabilities
-
 
 CFG = {
     "eval": {
