@@ -1,0 +1,165 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\setlist{nosep,leftmargin=*}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\newcommand{\tbd}{\textcolor{red}{TBD}}
+
+\title{\textbf{Industrial Defect Segmentation on MVTec AD}\\[2pt]\large Stage 5: Results Checkpoint -- Computer Vision 2026}
+
+\date{3 November 2026\\[2pt]\small Repository: \url{https://github.com/jestersw/Defect-Segmentation}}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\section{Evaluation Protocol}
+
+All approaches use a U-Net with a ResNet18 encoder (ImageNet weights, decoder [128, 64, 32, 16, 8], 12.46\,M parameters), AdamW (lr $10^{-4}$, weight decay $10^{-4}$), cosine schedule, batch 8, at most 60 epochs with early stopping on validation Dice (patience 10) and seed 42, on the same splits (550 / 118 / 118 images). They differ in the loss (BCE or $0.5\,$Dice $+\ 0.5\,$Focal), the augmentation policy (default or category-aware) and the input resolution. Logits are upsampled to $512\times512$ before sigmoid and thresholding at 0.5.
+
+The final model was selected on the validation split before any test evaluation: condition B, which has the highest validation Dice and IoU. Each checkpoint was then evaluated exactly once on the test split; no configuration, threshold or checkpoint was changed afterwards.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lllX}
+\toprule
+Approach & Loss & Augmentation & Input \\
+\midrule
+A: \texttt{cpu\_light\_bce\_256} & BCE & default & $256\times256$ \\
+B: \texttt{cpu\_light\_dice\_focal\_256} (final) & Dice + Focal & default & $256\times256$ \\
+C: \texttt{cpu\_light\_bce\_256\_cataug} & BCE & category-aware & $256\times256$ \\
+D: \texttt{cpu\_light\_dice\_focal\_256\_cataug} & Dice + Focal & category-aware & $256\times256$ \\
+E: \texttt{cpu\_light\_dice\_focal\_512} & Dice + Focal & default & $512\times512$ \\
+\bottomrule
+\end{tabularx}
+\caption{Evaluated approaches. The category-aware policy disables flips and rotations for capsule and metal nut.}
+\label{tab:approaches}
+\end{table}
+
+\section{Final Results}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Approach & Dice & IoU & Pixel P & Pixel R & Small-defect R & Good FPR \\
+\midrule
+A: BCE & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+B: Dice + Focal (final) & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+C: BCE, cat.-aware & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+D: Dice + Focal, cat.-aware & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+E: Dice + Focal, 512 & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Test split (118 images), threshold 0.5. Dice and IoU are averaged over defective images; pixel precision and recall are pooled over all pixels. A small defect (component below 859.28 px) counts as detected when at least 25\% of its area is predicted. Good FPR is the share of good images with a predicted component of at least 20 px.}
+\label{tab:test}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Approach & Dice & IoU & Pixel P & Pixel R & Small-defect R & Good FPR \\
+\midrule
+A: BCE & 0.709 & 0.597 & 0.886 & 0.857 & 0.556 & 0.000 \\
+B: Dice + Focal (final) & 0.751 & 0.653 & 0.912 & 0.864 & 0.667 & 0.000 \\
+C: BCE, cat.-aware & 0.702 & 0.600 & 0.905 & 0.852 & 0.444 & 0.018 \\
+D: Dice + Focal, cat.-aware & 0.736 & 0.637 & 0.921 & 0.855 & 0.722 & 0.000 \\
+E: Dice + Focal, 512 & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Validation split (118 images, 57 good, 18 small components), used for model selection.}
+\label{tab:val}
+\end{table}
+
+\section{Comparison}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+ & \multicolumn{5}{c}{Test Dice} \\
+Category & A & B & C & D & E \\
+\midrule
+capsule & \tbd & \tbd & \tbd & \tbd & \tbd \\
+hazelnut & \tbd & \tbd & \tbd & \tbd & \tbd \\
+metal\_nut & \tbd & \tbd & \tbd & \tbd & \tbd \\
+tile & \tbd & \tbd & \tbd & \tbd & \tbd \\
+wood & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Per-category test Dice.}
+\label{tab:category}
+\end{table}
+
+\textbf{Loss.} \tbd
+
+\textbf{Augmentation policy.} \tbd
+
+\textbf{Resolution.} \tbd
+
+\textbf{Validation vs test.} \tbd
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{compare_predictions.png}
+\caption{The same test images: ground truth and predictions of A (BCE) and B (Dice + Focal).}
+\label{fig:compare}
+\end{figure}
+
+\section{Runtime}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Approach & Epochs (best) & Median epoch, s & Total training, min & Inference, ms/image & p95, ms \\
+\midrule
+A & 60 (58) & 69.4 & 71.1 & \tbd & \tbd \\
+B & 58 (48) & 73.2 & 72.9 & \tbd & \tbd \\
+C & 55 (45) & 72.9 & 68.8 & \tbd & \tbd \\
+D & 36 (26) & 70.3 & 43.4 & \tbd & \tbd \\
+E & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Training and inference time on the same laptop CPU (AMD Ryzen AI 9 HX 370, 31\,GiB RAM, 8 threads, FP32, PyTorch 2.6.0). Epoch time includes training, validation, checkpoint writes and plotting. Inference is measured with batch 1 on 50 validation images after 5 warm-up images, covering the forward pass at the saved input size and upsampling of the logits to $512\times512$; image loading, sigmoid and thresholding are excluded.}
+\label{tab:runtime}
+\end{table}
+
+A 2-epoch trial at $512\times512$ input took 302\,s per epoch, 4.1 times longer than condition B at 256 (73\,s). \tbd
+
+\section{Failure Analysis}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth]{failure_cases.png}
+\caption{Failure cases of the final model B: image, ground truth and predictions of \tbd.}
+\label{fig:failures}
+\end{figure}
+
+\begin{enumerate}
+  \item \textbf{Complete miss of a large defect.} \tbd
+  \item \textbf{Missed small defect.} \tbd
+  \item \textbf{False positives / over-segmentation.} \tbd
+\end{enumerate}
+
+\section{Conclusion}
+
+\tbd
+
+\end{document}
