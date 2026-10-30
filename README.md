@@ -271,6 +271,13 @@ includes split hashes, settings, versions and diagnostic timings (worker startup
 and tensor checks included, no model). It used Python 3.13 / PyTorch 2.10 locally;
 CI validates the project-pinned Python 3.11 / PyTorch 2.6 environment.
 
+## Selected-case comparison figures (issue #57)
+
+`scripts/plot_cases.py` renders explicitly selected validation/test paths: one row
+per image, with the image, ground truth overlay and a prediction overlay for each
+checkpoint. Prediction titles include per-image Dice. It uses the same threshold
+and logit resizing as evaluation; see the [commands and conventions](docs/cpu_training.md#selected-case-comparison-figures).
+
 ## Checks
 
 ```sh
