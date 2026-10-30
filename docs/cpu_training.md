@@ -141,6 +141,57 @@ or other heavy workloads; timings from the tiny random-weight unit test are not
 experiment results. Commit completed benchmark JSON alongside run artifacts;
 checkpoints remain ignored. This script never loads training or test images.
 
+## Selected-case comparison figures
+
+Use `scripts/plot_cases.py` for the Stage 5 failure-case and A vs B figures.
+Supply one shared saved run config, one or more checkpoints with matching labels,
+and exact POSIX paths from `splits/val.txt` or `splits/test.txt`. Paths are relative
+to `data.root`, not to the current directory. The order of `--paths` determines
+rows; checkpoints and labels determine prediction columns. For example (one line,
+also usable in PowerShell):
+
+```sh
+python scripts/plot_cases.py --config results/runs/cpu_light_dice_focal_256/config.yaml --checkpoint checkpoints/cpu_light_bce_256/best.pth --label "A: BCE" --checkpoint checkpoints/cpu_light_dice_focal_256/best.pth --label "B: Dice + Focal" --split val --paths capsule/test/faulty_imprint/004.png capsule/test/crack/020.png tile/test/rough/009.png --output results/s5/failure_cases.png
+```
+
+These are validation candidates from issue #58, not a finalized failure analysis.
+For an A-D comparison, append the C and D checkpoints with their labels. Both
+repeated flags and grouped lists (`--checkpoint a.pth b.pth --label A B`) work.
+Each label must be nonempty and unique. To reuse the path list prepared in #58,
+PowerShell accepts `--paths (Get-Content results/failure_cases.txt)`; Bash accepts
+`--paths $(cat results/failure_cases.txt)`. Every path must belong to the selected
+manifest; unknown or duplicate paths fail. Only the selected images are decoded
+and passed to the models, with no augmentation or full-split cache.
+
+All checkpoints in a figure use the supplied config's model architecture,
+`train.input_size`, `train.eval_size`, and `eval.threshold`. Runs A-D share these
+settings and can be compared together. Render B-512 separately with its own saved
+config so its input stays at 512; a single figure does not support different input
+sizes or thresholds per checkpoint. Loading weights does not download pretrained
+encoders. The script does not tune thresholds or calculate whole-split metrics.
+Use `--split test` only for the fixed models after the test evaluation in #56;
+the figure command still runs inference for the selected cases.
+
+Each row shows the RGB image, ground truth overlay and prediction overlays.
+The displayed RGB image is resized directly from its original resolution to
+`train.eval_size`, preserving details that could disappear at the model input size.
+Masks follow the evaluation dataset's nearest-neighbour resizing and binarization.
+Predictions reuse `src.evaluate.predict_probabilities`: bilinear logit resizing
+with `align_corners=False` **before sigmoid**, then `probability >= eval.threshold`.
+Orange marks defect pixels with the same opacity in all overlays. The figure
+identifies the split, threshold, image paths and model labels. Prediction titles
+show Dice to three decimals for defective images; good images show `Dice = N/A
+(good)`, matching the per-image CSV convention that excludes them from Dice.
+
+`--output` creates parent directories and supports PNG, PDF or SVG. It replaces
+an existing figure at that path. Generation is headless and works on CPU.
+Synthetic tests cover checkpoint loading, path selection/order, alignment, threshold
+equality, Dice titles, and single/multiple rows and checkpoints:
+
+```sh
+python -m pytest -q tests/test_plot_cases.py
+```
+
 ## Monitor
 
 ```powershell
