@@ -1,0 +1,166 @@
+# Failure Cases Analysis
+
+## Evaluation setup
+
+The analysis is based on per-image validation metrics from four completed runs.
+All predictions were evaluated using a threshold of 0.5.
+
+Small-defect threshold: 859.28 pixels.
+
+Model mapping:
+- A: cpu_light_bce_256
+- B: cpu_light_dice_focal_256
+- C: cpu_light_bce_256_cataug
+- D: cpu_light_dice_focal_256_cataug
+
+Note: These are validation results, not test-set results.
+The metrics show where the models fail, but visual inspection is required
+to confirm the exact visual reason for each failure.
+
+---
+
+## Case 1: Complete miss of a large defect
+
+Image:
+capsule/test/faulty_imprint/004.png
+
+Ground-truth defect area: 10,821 pixels.
+
+Model B completely missed the defect:
+- TP: 0
+- FP: 0
+- FN: 10,821
+- Dice: approximately 0.0000
+
+Other models detected most of the defect:
+- Model A Dice: 0.8160
+- Model C Dice: 0.9223
+- Model D Dice: 0.9060
+
+Analysis:
+This is a clear example of a large defect that Model B failed to
+segment entirely, while the other models achieved substantially
+better results.
+
+The difference suggests that this image is challenging for the
+decision boundary learned by Model B. The precise visual cause
+requires inspection of the original image and prediction mask.
+
+---
+
+## Case 2: Very small defect missed by all models
+
+Image:
+capsule/test/crack/020.png
+
+Ground-truth defect area: 178 pixels.
+
+The defect is below the small-defect threshold of 859.28 pixels.
+
+All four models completely missed the defect:
+- Model A Dice: approximately 0.0000
+- Model B Dice: approximately 0.0000
+- Model C Dice: approximately 0.0000
+- Model D Dice: approximately 0.0000
+
+For every model:
+- TP: 0
+- FP: 0
+- FN: 178
+
+Analysis:
+This case demonstrates a common limitation in segmentation:
+very small defects can be difficult to detect because they occupy
+only a tiny fraction of the image.
+
+The defect may be lost during image resizing or feature extraction.
+This is a possible explanation, not a confirmed visual diagnosis.
+
+---
+
+## Case 3: False positives and over-segmentation
+
+Image:
+tile/test/rough/009.png
+
+Ground-truth defect area: 74,957 pixels.
+
+Model B results:
+- TP: 74,527
+- FP: 9,601
+- FN: 430
+- Dice: 0.9369
+- Precision: 0.8859
+- Recall: 0.9943
+
+Other model results:
+- Model A Dice: 0.9273; FP: 11,311
+- Model C Dice: 0.9132; FP: 14,227
+- Model D Dice: 0.9489; FP: 7,362
+
+Analysis:
+The models detect most of the actual defect, but also classify
+additional pixels as defective.
+
+Model B has high recall (0.9943), meaning that it detects almost
+all ground-truth defect pixels. However, its false-positive count
+(9,601) indicates that some non-defective regions are also
+segmented as defects.
+
+This case illustrates the trade-off between recall and precision.
+Visual inspection is needed to determine where the additional
+predicted pixels are located.
+
+---
+
+## Case 4: Large defect completely missed by most models
+
+Image:
+capsule/test/squeeze/017.png
+
+Ground-truth defect area: 1,536 pixels.
+
+Results:
+- Model A: TP=0, FP=269, FN=1,536
+- Model B: TP=0, FP=0, FN=1,536
+- Model C: TP=83, FP=181, FN=1,453
+- Model D: TP=0, FP=0, FN=1,536
+
+Dice scores:
+- Model A: approximately 0.0000
+- Model B: approximately 0.0000
+- Model C: 0.0922
+- Model D: approximately 0.0000
+
+Analysis:
+Three of the four models completely missed the defect.
+Model C detected only a small portion of it.
+
+Unlike Case 2, this defect is larger than the small-defect
+threshold. Therefore, its failure cannot be explained only
+by the defect's small area.
+
+This example suggests that defect appearance or image-specific
+features may strongly affect segmentation performance.
+The exact reason should be established through visual inspection.
+
+---
+
+## Summary
+
+The selected cases demonstrate several distinct failure patterns:
+
+1. Complete miss of a large defect by one model.
+2. Complete miss of a very small defect by all models.
+3. False-positive predictions and over-segmentation.
+4. Complete or near-complete miss of a defect larger than the
+   small-defect threshold.
+
+These examples show that segmentation quality depends not only
+on the overall validation Dice score, but also on defect size
+and image-specific characteristics.
+
+All conclusions above are based on validation per-image metrics.
+Visual inspection of the original images, ground-truth masks,
+and predicted masks is recommended before drawing conclusions
+about the exact visual causes of the failures.
