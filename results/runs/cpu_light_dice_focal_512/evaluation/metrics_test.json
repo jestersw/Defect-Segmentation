@@ -1,0 +1,12 @@
+{
+  "split": "test",
+  "threshold": 0.5,
+  "images": 118,
+  "defective_images": 57,
+  "dice": 0.8092597095482684,
+  "iou": 0.7186582922829999,
+  "precision": 0.9133317998813922,
+  "recall": 0.8755666425659195,
+  "small_recall": 0.65,
+  "good_fpr": 0.0
+}
