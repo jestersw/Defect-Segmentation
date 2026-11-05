@@ -1,0 +1,103 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=1.8cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\setlist{nosep,leftmargin=*}
+\setlength{\parskip}{3pt}
+\setlength{\parindent}{0pt}
+\newcommand{\tbd}{\textcolor{red}{TBD}}
+
+\title{\textbf{Industrial Defect Segmentation on MVTec AD}\\[2pt]\large Technical Summary -- Computer Vision 2026}
+\date{10 November 2026\\[2pt]\small Repository: \url{https://github.com/jestersw/Defect-Segmentation}}
+
+\begin{document}
+\maketitle
+\vspace{-2em}
+
+\section{Problem}
+
+Visual inspection in manufacturing must locate defects at pixel level, not only decide whether a part is defective. We train a supervised binary segmentation model that predicts a defect mask for an image of a product or surface. The main difficulty is class imbalance: most defects cover a tiny fraction of the image, and the small ones are the easiest to miss. The project compares how the loss function, the augmentation policy and the input resolution affect segmentation quality, especially on small defects, under a CPU-only compute budget.
+
+\section{Dataset}
+
+We use five MVTec AD categories: two textures (tile, wood) and three objects (hazelnut, metal nut, capsule). Defective test images with pixel masks and a matched number of good images form a pool of 786 images, split once into 550 / 118 / 118 images (train / validation / test), stratified by category and defect type with seed 42. The \texttt{metal\_nut/flip} defect type is excluded because a flipped nut is indistinguishable from a geometric augmentation. MD5 and SHA-256 hashes confirm that no image appears in two splits. A defect component is \emph{small} if its area at $512\times512$ is below 859.28\,px, the 33rd percentile of training components; validation and test contain 18 and 20 small components.
+
+\section{Methodology}
+
+\textbf{Model.} U-Net (\texttt{segmentation\_models\_pytorch} 0.4.0) with a ResNet18 encoder pre-trained on ImageNet, a narrow decoder [128, 64, 32, 16, 8] and one output channel (12.46\,M parameters). The planned ResNet34 was replaced by ResNet18 because only a laptop CPU was available.
+
+\textbf{Compared factors.} Loss: binary cross-entropy (BCE) or $0.5\,$Dice $+\ 0.5\,$Focal ($\gamma=2$, $\alpha=0.25$), which emphasises foreground overlap instead of averaging the error over all pixels. Augmentation: the default policy (flips, $90^\circ$ rotations and brightness/contrast for all categories) or a category-aware policy without flips and rotations for capsule and metal nut. Input resolution: $256\times256$ or $512\times512$.
+
+\section{Experimental Setup}
+
+AdamW (lr $10^{-4}$, weight decay $10^{-4}$), cosine schedule, batch 8, at most 60 epochs, early stopping on validation Dice with patience 10, seed 42, FP32 on an AMD Ryzen AI 9 HX 370 CPU (8 threads, PyTorch 2.6.0). Logits are upsampled to $512\times512$ before sigmoid and thresholding at 0.5. Metrics: Dice and IoU averaged over defective images, pixel precision and recall pooled over all pixels, small-defect recall (a small component counts as detected when at least 25\% of its area is predicted) and good-image false-positive rate (a predicted component of at least 20\,px). The final model is selected by validation Dice; each checkpoint's aggregate test report was generated once, with no changes afterwards.
+
+\section{Main Results}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{llrrrrrr}
+\toprule
+ & Approach & Dice & IoU & Pixel P & Pixel R & Small R & Inference \\
+\midrule
+A & BCE, default, 256 & 0.716 & 0.613 & 0.877 & 0.839 & 7/20 & 48\,ms \\
+B & Dice + Focal, default, 256 & 0.757 & 0.663 & 0.899 & 0.860 & 8/20 & 47\,ms \\
+C & BCE, category-aware, 256 & 0.716 & 0.611 & 0.898 & 0.831 & 8/20 & 48\,ms \\
+D & Dice + Focal, category-aware, 256 & 0.756 & 0.653 & 0.897 & 0.842 & 9/20 & 53\,ms \\
+E & Dice + Focal, default, 512 (final) & \textbf{0.809} & \textbf{0.719} & \textbf{0.913} & \textbf{0.876} & \textbf{13/20} & 168\,ms \\
+\bottomrule
+\end{tabular}
+\caption{Test split (118 images, 61 good). No approach produced a false positive on good test images. Inference: mean CPU time per image, batch 1, including logit upsampling.}
+\label{tab:results}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{Loss.} Dice + Focal improves test Dice over BCE by about 0.04 under both augmentation policies (A to B, C to D).
+  \item \textbf{Resolution.} Training at 512 gives the largest gain: Dice 0.757 to 0.809 and small-defect recall 8 to 13 of 20 (B to E). E is the best approach in every category, with test Dice from 0.597 (capsule) to 0.917 (tile).
+  \item \textbf{Augmentation.} The category-aware policy produces very small differences in overall test Dice in these single-seed runs; it lowers metal nut Dice with BCE (0.820 to 0.708).
+  \item \textbf{Cost.} At 512, a training epoch takes 4.0 times longer (293\,s vs 73\,s) and inference 3.5 times longer than at 256; training E took about 5\,h.
+  \item \textbf{Failures.} Remaining errors are concentrated in capsule: small, low-contrast defects (a thin dent on the dark half, a missing stroke of a printed digit) are missed by all approaches, a reflection on the dark half causes a false-positive region, and a capsule with no print at all is missed by the two models trained with flips and rotations but found by both category-aware models.
+\end{itemize}
+
+\section{Conclusions}
+
+The final model, a ResNet18 U-Net trained at $512\times512$ with Dice + Focal loss, reaches test Dice 0.809, IoU 0.719 and small-defect recall 0.650 with no false positives on good test images, at 168\,ms per image on a laptop CPU. Both the loss change and the higher resolution improve results on unseen data, and the validation ranking of all five approaches is preserved on the test split. Validation and test Dice of the final model agree closely (0.810 and 0.809).
+
+\section{Limitations}
+
+\begin{itemize}
+  \item One seed per configuration, so run-to-run variability is unknown; small-defect recall rests on 18--20 components.
+  \item Only five of the 15 MVTec AD categories, and one random split of a small dataset.
+  \item CPU-only training limited the encoder size and the number of runs; the 512 run was interrupted and resumed without restoring random states, so it is not bit-reproducible.
+  \item Fixed threshold 0.5; no calibration of predicted probabilities was studied.
+  \item The approach is supervised and needs pixel masks of defects, unlike anomaly detection methods trained on good images only.
+\end{itemize}
+
+\section{Reproducibility and Team Contributions}
+
+The repository contains the code, fixed split manifests, configurations, all run results (metrics, per-image CSVs, curves, benchmarks) and a README with setup (Python 3.11, pinned \texttt{requirements.txt}), data download, training, evaluation and demo instructions. Final weights: release \tbd. Unit tests and lint run in GitHub Actions CI.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+GitHub & Contribution \\
+\midrule
+jestersw (lead) & Project plan and task tracking, CI, evaluation module and metrics pipeline, prediction plots, results summary script, review of all runs, analysis and reports. \\
+moonshine1l & Dataset preparation and fixed split, dataset class, preprocessing, augmentation and loaders, category-aware augmentation, inference benchmark, failure-case figure script, demo script \tbd. \\
+psandersi & Model builder, training loop, losses and CPU configuration; all training runs; test evaluation, per-image metrics and inference benchmarks; failure-case figures; weights release \tbd. \\
+AigulFar & Loss unit tests, per-image metrics script, failure-case analysis, reproducibility check \tbd. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\end{document}
