@@ -278,6 +278,14 @@ per image, with the image, ground truth overlay and a prediction overlay for eac
 checkpoint. Prediction titles include per-image Dice. It uses the same threshold
 and logit resizing as evaluation; see the [commands and conventions](docs/cpu_training.md#selected-case-comparison-figures).
 
+## Arbitrary-image demo (issue #68)
+
+`scripts/demo.py` accepts arbitrary image files and a saved model/config pair.
+It writes an input/heatmap/overlay figure and a JSON with predicted area, maximum
+probability, component-based defect flag and CPU inference time for each image.
+See [the demo guide](docs/demo.md) for setup, exact commands and five selected test
+examples for final model E, including a small defect and a complete miss.
+
 ## Checks
 
 ```sh
