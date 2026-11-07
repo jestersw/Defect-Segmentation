@@ -106,10 +106,19 @@ python -m pytest -q
 The tests use synthetic data and need neither the dataset nor trained weights. GitHub Actions runs the same checks on every pull request.
 
 ## Repository structure
-configs/ training and evaluation configurations (cpu_light.yaml, cpu_light_cataug.yaml)
-splits/ fixed train/val/test manifests
-src/ data loading, model, losses, training, evaluation and metrics
-scripts/ data download, demo, benchmark, per-image metrics, figures, result tables
-tests/ unit tests (synthetic data)
-results/ dataset statistics, run results for A-E, failure-case figures
-docs/ technical summary, stage reports, demo guide, training notes, project log
+```
+configs/         base.yaml, cpu_light.yaml (A, B, E), cpu_light_cataug.yaml (C, D)
+splits/          fixed train.txt / val.txt / test.txt manifests
+src/             data.py, model.py, losses.py, train.py, evaluate.py, metrics.py
+scripts/         download_data.py, make_split.py, demo.py, benchmark_inference.py,
+                 per_image_metrics.py, plot_cases.py, plot_predictions.py, summarize_results.py
+tests/           unit tests on synthetic data (pytest)
+results/         dataset statistics and split metadata
+  runs/<run>/    config, history, curves, summary, inference_cpu.json for A-E
+    evaluation/  val/test metrics, per-category, per-image and threshold sweeps
+  s5/            failure-case figures
+docs/            technical_summary.tex, report_1-5.tex, demo.md, cpu_training.md,
+                 compute.md, project_log.md
+data/            MVTec AD after download (not in git)
+checkpoints/     trained or downloaded weights (not in git)
+```
