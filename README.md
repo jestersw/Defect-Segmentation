@@ -1,299 +1,124 @@
-
 ![CI](https://github.com/jestersw/Defect-Segmentation/actions/workflows/ci.yml/badge.svg)
 
-# Defect Segmentation
+# Industrial Defect Segmentation on MVTec AD
 
-Binary defect segmentation on five MVTec AD categories: tile, hazelnut, wood,
-metal_nut, and capsule. Shared settings are in `configs/base.yaml`.
+Pixel-level binary defect segmentation on five MVTec AD categories (tile, wood, hazelnut, metal_nut, capsule) with a U-Net and a ResNet18 encoder, trained on CPU. The project compares the loss function (BCE vs Dice + Focal), the augmentation policy (default vs category-aware) and the input resolution (256 vs 512), with a focus on small defects.
 
-## Dataset preparation (issue #6)
+Final model weights: [release v1.0](https://github.com/jestersw/Defect-Segmentation/releases/tag/v1.0).
+Technical summary: [`docs/technical_summary.tex`](docs/technical_summary.tex).
 
-Use Python 3.11 (the CI version). Install project dependencies and the optional
-Kaggle downloader:
+## Results
 
-```sh
-python -m pip install -r requirements.txt
-python -m pip install kaggle
-```
+Test split, 118 images (61 good, 20 small defect components), threshold 0.5. The final model E was selected by validation Dice before test evaluation.
 
-Configure Kaggle authentication locally, for example with your account's
-`~/.kaggle/kaggle.json`. The downloader also accepts `.kaggle/kaggle.json` in the
-repository (git-ignored); an explicit `KAGGLE_CONFIG_DIR` takes precedence.
-Never commit credentials. The source is the
-[ipythonx/mvtec-ad mirror](https://www.kaggle.com/datasets/ipythonx/mvtec-ad)
-of MVTec AD; see its dataset page for attribution and license terms.
+| | Approach | Dice | IoU | Pixel P | Pixel R | Small-defect R | Good FPR | CPU inference |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| A | BCE, default aug., 256 | 0.716 | 0.613 | 0.877 | 0.839 | 7/20 | 0.000 | 48 ms |
+| B | Dice + Focal, default aug., 256 | 0.757 | 0.663 | 0.899 | 0.860 | 8/20 | 0.000 | 47 ms |
+| C | BCE, category-aware aug., 256 | 0.716 | 0.611 | 0.898 | 0.831 | 8/20 | 0.000 | 48 ms |
+| D | Dice + Focal, category-aware aug., 256 | 0.756 | 0.653 | 0.897 | 0.842 | 9/20 | 0.000 | 53 ms |
+| **E** | **Dice + Focal, default aug., 512 (final)** | **0.809** | **0.719** | **0.913** | **0.876** | **13/20** | **0.000** | **168 ms** |
 
-Run from the repository root (also works in PowerShell):
+Dice and IoU are averaged over defective images; pixel precision and recall are pooled over all pixels. A small defect is a connected component below 859.28 px at 512 x 512 and counts as detected when at least 25% of it is predicted. Good FPR is the share of good images with a predicted component of at least 20 px. Inference is the mean CPU time per image with batch 1 (AMD Ryzen AI 9 HX 370, 8 threads, FP32). All metrics, per-category and per-image results are in [`results/runs/`](results/runs).
 
-```sh
-python scripts/download_data.py
-python scripts/dataset_stats.py
-```
+Main findings: Dice + Focal improves test Dice by about 0.04 over BCE; training at 512 adds another 0.05 and raises small-defect recall from 8 to 13 of 20, at 3.5 times the inference time; the category-aware policy produces only very small differences. Remaining errors are mostly small, low-contrast capsule defects. Each configuration was trained with a single seed.
 
-On Linux/macOS/Git Bash, `bash scripts/download_data.sh` wraps the same download.
-The downloader runs `python -m kaggle datasets download -d ipythonx/mvtec-ad -p data/`,
-retains `data/mvtec-ad.zip`, and extracts only the configured categories into
-`data/mvtec_ad/<category>/{train,test,ground_truth}/`. Optional archive wrappers are
-removed. The ZIP contains all categories; allow space for the archive and the five
-extracted categories. An existing complete ZIP is reused. An incomplete download
-is passed back to the Kaggle client, which can resume it when the remote server
-supports resuming; do not run two downloaders against the same archive:
+## Setup
+
+Python 3.11 is required (the CI version). From the repository root:
 
 ```sh
-python scripts/download_data.py --archive /path/to/mvtec-ad.zip
-python scripts/dataset_stats.py --root /path/to/mvtec_ad --output results
-```
-
-Data and the downloaded archive are git-ignored. The analysis checks image
-readability, image/mask dimensions, missing/orphan masks, and empty defect masks.
-It compares counts against the expected inventory:
-
-| Category | train/good | test/good | test defective | Masks |
-| --- | ---: | ---: | ---: | ---: |
-| tile | 230 | 33 | 84 | 84 |
-| hazelnut | 391 | 40 | 70 | 70 |
-| wood | 247 | 19 | 60 | 60 |
-| metal_nut | 220 | 22 | 93 | 93 |
-| capsule | 219 | 23 | 109 | 109 |
-
-Count differences are printed and saved, rather than silently ignored. Broken
-image/mask pairs stop the analysis. Outputs:
-
-- `results/dataset_counts.csv`: observed and expected counts per category.
-- `results/dataset_stats.csv`: image/mask/component counts by category, official
-  source split, and defect type; minimum, median, and maximum component areas in
-  pixels and as percentages of the resized image.
-- `results/defect_area_hist.png`: component-area distributions by category with a
-  shared logarithmic x-axis.
-- `results/dataset_verification.json`: count differences, preprocessing settings,
-  and the number of masks that lose all foreground after resizing.
-
-Masks use OpenCV `INTER_NEAREST`, then `> 0` binarization and
-`skimage.measure.label(connectivity=2)` (8-connected components). All component
-areas are measured after resizing, without augmentation. Empty good-image masks
-have zero components and blank area statistics. The histogram and CSV describe
-all available masks; they do not set the evaluation threshold. The configured
-`data.exclude_defect_types: [metal_nut/flip]` excludes 23 images from the experiment
-before balancing and split generation. Inventory checks, the statistics CSV, and
-the histogram still cover all 416 original masks; the threshold uses the filtered
-training split only.
-
-## Fixed train/validation/test split (issue #7)
-
-The shared manifests are `splits/train.txt`, `splits/val.txt`, and `splits/test.txt`.
-Use these files for every experiment. This custom split defines the supervised
-evaluation protocol for the project.
-
-The pool contains the 393 retained defective images from official `test`, all 137
-official `test/good` images, and 256 sampled official `train/good` images. Each
-category has equal good and defective counts in the pool (786 images overall).
-The 23 `metal_nut/flip` images are excluded as global orientation anomalies whose
-masks cover roughly 48% of an image. Balancing is performed after this exclusion.
-
-```sh
-python scripts/make_split.py
-```
-
-The script reads seed 42 and ratios `[0.70, 0.15, 0.15]` from `configs/base.yaml`.
-It sorts categories and image paths before sampling good images without
-replacement using NumPy `default_rng`. Two scikit-learn `train_test_split` calls
-use `stratify=(category, defect_type)` and `random_state=42`: first 70/30, then a
-50/50 split of the held-out 30%. Good images form one stratum per category.
-Rounding within strata means individual split/category counts can differ slightly
-between good and defective images.
-
-| Split | Defective | Good | Total |
-| --- | ---: | ---: | ---: |
-| Train | 275 | 275 | 550 |
-| Validation | 61 | 57 | 118 |
-| Test | 57 | 61 | 118 |
-
-Before writing outputs, the script checks that every pooled path appears exactly
-once and that no byte-identical images (MD5) occur in different splits. Strata
-with fewer than seven images produce a warning; an impossible stratification
-fails without silently dropping or merging groups. All actual strata have at
-least eight images. Two runs on the real dataset produced byte-identical manifests
-and reports, and both leakage checks passed.
-
-[`results/split_summary.csv`](results/split_summary.csv) contains counts by category
-and split. [`results/split_metadata.json`](results/split_metadata.json) records the
-pool composition, seed, ratios, library versions, and SHA-256 manifest hashes.
-Manifests use UTF-8 with LF line endings on all platforms. scikit-learn is pinned
-to 1.9.0; this run used NumPy 2.1.3 and Python 3.13 (CI uses Python 3.11).
-
-Identical reruns are allowed. A different split is rejected unless `--overwrite`
-is supplied deliberately; changing a shared split requires recalculating the
-train-only threshold and rerunning the experiments. To generate an experimental
-split separately, use `--config`, `--splits-dir`, and `--output` with separate paths.
-
-## Train-only small-defect threshold
-
-The fixed custom split is tracked in [issue #7](https://github.com/jestersw/Defect-Segmentation/issues/7).
-The official training set contains only good images. Do not use it or the entire
-dataset to estimate the threshold. To reproduce the threshold for the shared split, run:
-
-```sh
-python scripts/dataset_stats.py --splits-dir splits
-```
-
-Each manifest (`train.txt`, `val.txt`, `test.txt`) must contain one POSIX image path
-per line relative to `data/mvtec_ad`, e.g. `tile/test/crack/000.png`. Before computing
-the percentile, the script rejects missing images, duplicate paths, overlapping
-splits, and byte-identical images across splits. It requires nonempty manifests
-and defect components in the training split.
-
-`results/small_defect_threshold.json` records the 33rd percentile of **train
-components only**, NumPy's linear interpolation method, and SHA-256 hashes of all
-three manifests. Per the shared protocol, this step requires 512 × 512 masks.
-A small defect has `area < small_defect_area_px` (strict inequality, no rounding).
-The shared train split contains 449 defect components. Its 33rd percentile is
-approximately **859.28 pixels** (**0.3278%** of a 512 × 512 image), recorded at
-full precision in the JSON and `eval.small_defect_area_px`.
-This supersedes the earlier 1,102.11-pixel threshold and 832-image split that
-included `metal_nut/flip`. After the approved exclusion, the manifests, summary,
-hashes, and threshold were regenerated. Existing clones
-with the earlier split must deliberately run `python scripts/make_split.py --overwrite`
-followed by the statistics command above before using the new protocol.
-Without `--splits-dir`, no threshold is estimated;
-any threshold file from an earlier run is not refreshed.
-
-## Verified dataset results
-
-The Kaggle archive was processed on 2026-10-03 with the default configuration.
-All five categories match the expected counts above: 1,860 images (1,444 good
-and 416 defective) and 416 corresponding masks. All images and masks were
-readable, dimensions matched, and there were no missing or orphan masks.
-
-At 512 × 512, the masks contain 638 components with areas from 1 to 127,709 pixels.
-No defect mask became entirely empty after resizing. See
-[`results/dataset_stats.csv`](results/dataset_stats.csv),
-[`results/dataset_counts.csv`](results/dataset_counts.csv),
-[`results/dataset_verification.json`](results/dataset_verification.json), and
-[`results/defect_area_hist.png`](results/defect_area_hist.png).
-
-These are descriptive results over all available images. The evaluation
-threshold comes exclusively from the shared training split; see
-[`results/small_defect_threshold.json`](results/small_defect_threshold.json).
-
-## Dataset Preparation report section (issue #8)
-
-Section 2 of [`docs/report_1.tex`](docs/report_1.tex) contains the verified
-dataset preparation, actual split counts, and train-only threshold after excluding
-`metal_nut/flip`. Its numbers come from the committed CSV/JSON results. It
-distinguishes the statistics and leakage checks completed in Stage 1 from the
-training transforms implemented in Stage 2. The histogram is available as a
-separate artifact to keep the report compact.
-
-With an existing LaTeX installation, build the full report from the repository root:
-
-```sh
-python -c "from pathlib import Path; Path('.tools').mkdir(exist_ok=True)"
-pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/report_1.tex
-pdflatex -interaction=nonstopmode -halt-on-error -output-directory=.tools docs/report_1.tex
-```
-
-Alternatively use `tectonic --outdir .tools docs/report_1.tex`.
-
-## CPU environment and timing (issues #9 and #10)
-
-The task owner selected local CPU compute. See [the reproducible protocol](docs/compute.md)
-for Python 3.11 setup and a full batch-8 U-Net benchmark at 512 and 256 pixels.
-`scripts/smoke_test.py` records step times, peak process RAM and projections for
-both the issue's 582-image reference and the current 550-image train split.
-The standalone smoke test verifies the model independently of the training pipeline.
-
-## Stage 2 dataset and loaders (issue #24)
-
-`src.data.MVTecSegDataset(split, cfg, train)` reads the fixed manifests in
-`data.splits_dir`, preserving their order in `dataset.records` (`path`, `category`,
-`defect_type`). Relative config paths resolve from the repository root; absolute
-paths are supported. Images are read as RGB, defect masks come from
-`<category>/ground_truth/<defect_type>/<stem>_mask.png`, and good images have zero masks.
-
-Each sample contains contiguous float32 image/mask tensors. Image size comes from
-`train.input_size` (256 by default); mask size is `input_size` in train mode and
-`train.eval_size` (512) in evaluation mode. Images use bilinear resizing and
-ImageNet normalisation. Masks are resized directly from their original resolution
-with nearest-neighbour interpolation and binarised at `> 0`; validation masks are
-never reduced to the model input size first.
-
-Training applies Albumentations horizontal/vertical flips and 90-degree rotations
-jointly to images and masks, plus image-only brightness/contrast limits of 0.1.
-Each transform has probability 0.5. Evaluation has no random transforms.
-For Stage 4, opt in with `data.category_aware_augmentation: true` in a copy of the
-run configuration. This keeps flips and 90-degree rotations for `tile`, `wood`,
-and `hazelnut`; `capsule` and `metal_nut` receive brightness/contrast changes only.
-The same rule applies to good and defective images. Photometric limits and
-probabilities are unchanged, and geometric operations still transform the image
-and mask together. This option works with `data.cache_images` and seeded workers.
-With the flag absent or `false` (the default), the original augmentation sequence
-is preserved for all categories. Keep it off for Stage 3; Stage 4 must retrain
-both BCE and Dice + Focal with the same enabled policy before comparing them.
-
-Use `configs/cpu_light_cataug.yaml` for these Stage 4 runs; it differs from
-`configs/cpu_light.yaml` only in this flag. See the
-[training and CPU inference benchmark instructions](docs/cpu_training.md)
-for run commands and `scripts/benchmark_inference.py` (saved input size, optionally
-overridden with `--input-size`, and timed bilinear logit resizing to the evaluation
-size; batch 1, eight CPU threads, five warm-ups and at least 50 timed images).
-
-`make_loaders(cfg)` returns `(train_loader, val_loader, test_loader)` with the
-configured batch size and worker count. Only train shuffles; the last partial
-batch is retained. Separate seeded generators and worker-specific augmentation
-seeds reproduce complete runs with the same seed, library versions, worker count,
-batch size, and iteration schedule. Augmentations continue to vary across epochs;
-changing the worker count can change their sequence.
-
-On Windows, create and iterate loaders inside an `if __name__ == "__main__":`
-guard when using workers. Synthetic tests exercise the `spawn` worker mode.
-Stage 2 uses train/validation data only; keep the real test loader unconsumed
-until the final comparison.
-
-Generate the report illustration (eight seeded training examples after augmentation):
-
-```sh
-python scripts/show_batch.py --config configs/base.yaml
-```
-
-The output is [`results/s2/data_samples.png`](results/s2/data_samples.png), with
-ground-truth masks in orange. The script reverses ImageNet normalisation for display.
-Data tests run without MVTec files or a GPU:
-
-```sh
-python -m pytest -q tests/test_data.py
-```
-
-All 26 data tests passed locally. A real-data check consumed all 550 training
-images (69 batches) and 118 validation images (15 batches) with four workers,
-checking shapes, finite float32 tensors and binary masks. The real test loader
-was not consumed. [The recorded check](results/s2/data_loading_check.json)
-includes split hashes, settings, versions and diagnostic timings (worker startup
-and tensor checks included, no model). It used Python 3.13 / PyTorch 2.10 locally;
-CI validates the project-pinned Python 3.11 / PyTorch 2.6 environment.
-
-## Selected-case comparison figures (issue #57)
-
-`scripts/plot_cases.py` renders explicitly selected validation/test paths: one row
-per image, with the image, ground truth overlay and a prediction overlay for each
-checkpoint. Prediction titles include per-image Dice. It uses the same threshold
-and logit resizing as evaluation; see the [commands and conventions](docs/cpu_training.md#selected-case-comparison-figures).
-
-## Arbitrary-image demo (issue #68)
-
-`scripts/demo.py` accepts arbitrary image files and a saved model/config pair.
-It writes an input/heatmap/overlay figure and a JSON with predicted area, maximum
-probability, component-based defect flag and CPU inference time for each image.
-See [the demo guide](docs/demo.md) for setup, exact commands and five selected test
-examples for final model E, including a small defect and a complete miss.
-
-## Checks
-
-```sh
+python3.11 -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
+```
+
+On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1`. `requirements.txt` pins the runtime packages (PyTorch 2.6.0 CPU, segmentation-models-pytorch 0.4.0, albumentations 2.0.8, NumPy 2.1.3); `requirements-dev.txt` adds pytest and ruff.
+
+## Data
+
+The dataset comes from the [ipythonx/mvtec-ad](https://www.kaggle.com/datasets/ipythonx/mvtec-ad) Kaggle mirror of MVTec AD; see the dataset page for attribution and license terms. Configure Kaggle credentials (`~/.kaggle/kaggle.json`, never committed), then:
+
+```sh
+python -m pip install kaggle
+python scripts/download_data.py
+```
+
+This extracts the five categories into `data/mvtec_ad/` (git-ignored). The fixed split manifests are committed in [`splits/`](splits) and must not be regenerated. Dataset checks, the split protocol and the small-defect threshold are described in [`docs/project_log.md`](docs/project_log.md).
+
+## Final model weights
+
+```sh
+gh release download v1.0 -R jestersw/Defect-Segmentation -p "cpu_light_dice_focal_512.pth" -D checkpoints/cpu_light_dice_focal_512
+mv checkpoints/cpu_light_dice_focal_512/cpu_light_dice_focal_512.pth checkpoints/cpu_light_dice_focal_512/best.pth
+sha256sum checkpoints/cpu_light_dice_focal_512/best.pth
+```
+
+The hash must be `c30e3daaa57e80e5a8c6243ec6ae6e059f7d78f196d6cad6dfb520bb3859b5e6`. Without `gh`, download the file from the release page in a browser. Release v1.0 also contains model B (`cpu_light_dice_focal_256.pth`) and both saved configs.
+
+## Evaluate the final model
+
+```sh
+python -m src.evaluate --config results/runs/cpu_light_dice_focal_512/config.yaml --checkpoint checkpoints/cpu_light_dice_focal_512/best.pth --split val --output-dir results/check/E
+```
+
+The printed metrics must match [`results/runs/cpu_light_dice_focal_512/evaluation/metrics_val.json`](results/runs/cpu_light_dice_focal_512/evaluation/metrics_val.json) (Dice 0.8104). The test split is reserved: the reported test metrics were generated once and should not be used to tune anything.
+
+## Demo
+
+Run the final model on any image files; each input produces a figure (input, probability heatmap, overlay) and a JSON with predicted area, maximum probability, defect flag and inference time:
+
+```sh
+python scripts/demo.py --config results/runs/cpu_light_dice_focal_512/config.yaml --checkpoint checkpoints/cpu_light_dice_focal_512/best.pth --images data/mvtec_ad/capsule/test/good/001.png data/mvtec_ad/tile/test/glue_strip/017.png data/mvtec_ad/hazelnut/test/hole/000.png data/mvtec_ad/capsule/test/poke/011.png data/mvtec_ad/capsule/test/squeeze/002.png --output-dir results/demo/E
+```
+
+The five examples (good image, clear texture and object defects, a small defect and a missed defect), output format and timing scope are explained in [`docs/demo.md`](docs/demo.md).
+
+## Reproduce the experiments
+
+Training refuses to overwrite an existing run, so use new run names. Commands for the five approaches:
+
+```sh
+python -m src.train --config configs/cpu_light.yaml --run-name repro_A_bce_256
+python -m src.train --config configs/cpu_light.yaml --run-name repro_B_dice_focal_256 --loss dice_focal
+python -m src.train --config configs/cpu_light_cataug.yaml --run-name repro_C_bce_256_cataug
+python -m src.train --config configs/cpu_light_cataug.yaml --run-name repro_D_dice_focal_256_cataug --loss dice_focal
+python -m src.train --config configs/cpu_light.yaml --run-name repro_E_dice_focal_512 --loss dice_focal --input-size 512
+```
+
+Each run writes metrics, curves and the resolved config to `results/runs/<run>/` and checkpoints to `checkpoints/<run>/`. On the reference laptop CPU an epoch takes about 70 s at 256 and 290 s at 512 (about 1 h and 5 h per run). Then, for each run:
+
+```sh
+python -m src.evaluate --config results/runs/<run>/config.yaml --checkpoint checkpoints/<run>/best.pth --split val --output-dir results/runs/<run>/evaluation
+python scripts/per_image_metrics.py --config results/runs/<run>/config.yaml --checkpoint checkpoints/<run>/best.pth --split val --output results/runs/<run>/evaluation/per_image_val.csv
+python scripts/benchmark_inference.py --config results/runs/<run>/config.yaml --checkpoint checkpoints/<run>/best.pth --output results/runs/<run>/inference_cpu.json
+```
+
+`python scripts/summarize_results.py` prints the report tables from `results/runs/`, and `scripts/plot_cases.py` draws selected images for several checkpoints (see [`docs/cpu_training.md`](docs/cpu_training.md)). Runs are deterministic on the same machine with seed 42; results on other hardware may differ slightly. Run E was interrupted and resumed once, so it is not bit-reproducible.
+
+## Tests
+
+```sh
 ruff check .
 python -m pytest -q
 ```
 
-Statistics and split-generator tests use synthetic masks and temporary data;
-the full dataset is not needed in CI. Manifest tests also verify the committed
-split files. Real-image MD5 checks run when generating the split and the threshold.
+The tests use synthetic data and need neither the dataset nor trained weights. GitHub Actions runs the same checks on every pull request.
+
+## Repository structure
+configs/ training and evaluation configurations (cpu_light.yaml, cpu_light_cataug.yaml)
+splits/ fixed train/val/test manifests
+src/ data loading, model, losses, training, evaluation and metrics
+scripts/ data download, demo, benchmark, per-image metrics, figures, result tables
+tests/ unit tests (synthetic data)
+results/ dataset statistics, run results for A-E, failure-case figures
+docs/ technical summary, stage reports, demo guide, training notes, project log
+
+## Team contributions
+
+| GitHub | Contribution |
+|---|---|
+| jestersw (lead) | Project plan and task tracking, CI, evaluation module and metrics pipeline, prediction plots, results summary script, review of all runs, analysis, reports and README |
+| moonshine1l | Dataset preparation and fixed split, dataset class, preprocessing, augmentation and loaders, category-aware augmentation, inference benchmark, failure-case figure script, demo script |
+| psandersi | Model builder, training loop, losses and CPU configuration; all training runs; test evaluation, per-image metrics and inference benchmarks; failure-case figures; weights release and demo dry run |
+| AigulFar | Loss unit tests, per-image metrics script, failure-case analysis, reproducibility check |
