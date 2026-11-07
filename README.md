@@ -113,12 +113,3 @@ scripts/ data download, demo, benchmark, per-image metrics, figures, result tabl
 tests/ unit tests (synthetic data)
 results/ dataset statistics, run results for A-E, failure-case figures
 docs/ technical summary, stage reports, demo guide, training notes, project log
-
-## Team contributions
-
-| GitHub | Contribution |
-|---|---|
-| jestersw (lead) | Project plan and task tracking, CI, evaluation module and metrics pipeline, prediction plots, results summary script, review of all runs, analysis, reports and README |
-| moonshine1l | Dataset preparation and fixed split, dataset class, preprocessing, augmentation and loaders, category-aware augmentation, inference benchmark, failure-case figure script, demo script |
-| psandersi | Model builder, training loop, losses and CPU configuration; all training runs; test evaluation, per-image metrics and inference benchmarks; failure-case figures; weights release and demo dry run |
-| AigulFar | Loss unit tests, per-image metrics script, failure-case analysis, reproducibility check |
