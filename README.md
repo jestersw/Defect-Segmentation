@@ -54,7 +54,7 @@ mv checkpoints/cpu_light_dice_focal_512/cpu_light_dice_focal_512.pth checkpoints
 sha256sum checkpoints/cpu_light_dice_focal_512/best.pth
 ```
 
-The hash must be `c30e3daaa57e80e5a8c6243ec6ae6e059f7d78f196d6cad6dfb520bb3859b5e6`. Without `gh`, download the file from the release page in a browser. Release v1.0 also contains model B (`cpu_light_dice_focal_256.pth`) and both saved configs.
+The hash must be `c30e3daaa57e80e5a8c6243ec6ae6e059f7d78f196d6cad6dfb520bb3859b5e6`. On Windows PowerShell, use `Get-FileHash checkpoints/cpu_light_dice_focal_512/best.pth -Algorithm SHA256`. Without `gh`, download the file from the release page in a browser. Release v1.0 also contains model B (`cpu_light_dice_focal_256.pth`) and both saved configs.
 
 ## Evaluate the final model
 

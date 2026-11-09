@@ -12,7 +12,6 @@
 \setlist{nosep,leftmargin=*}
 \setlength{\parskip}{3pt}
 \setlength{\parindent}{0pt}
-\newcommand{\tbd}{\textcolor{red}{TBD}}
 
 \title{\textbf{Industrial Defect Segmentation on MVTec AD}\\[2pt]\large Technical Summary -- Computer Vision 2026}
 \date{10 November 2026\\[2pt]\small Repository: \url{https://github.com/jestersw/Defect-Segmentation}}
@@ -83,7 +82,7 @@ The final model, a ResNet18 U-Net trained at $512\times512$ with Dice + Focal lo
 
 \section{Reproducibility and Team Contributions}
 
-The repository contains the code, fixed split manifests, configurations, all run results (metrics, per-image CSVs, curves, benchmarks) and a README with setup (Python 3.11, pinned \texttt{requirements.txt}), data download, training, evaluation and demo instructions. Final weights: release \tbd. Unit tests and lint run in GitHub Actions CI.
+The repository contains the code, fixed split manifests, configurations, all run results (metrics, per-image CSVs, curves, benchmarks) and a README with setup (Python 3.11, pinned \texttt{requirements.txt}), data download, training, evaluation and demo instructions. Final weights: GitHub release v1.0 (model-only state dicts of E and B with SHA-256 hashes); a demo script runs the final model on arbitrary images. Unit tests and lint run in GitHub Actions CI.
 
 \begin{table}[H]
 \centering
@@ -93,9 +92,9 @@ The repository contains the code, fixed split manifests, configurations, all run
 GitHub & Contribution \\
 \midrule
 jestersw (lead) & Project plan and task tracking, CI, evaluation module and metrics pipeline, prediction plots, results summary script, review of all runs, analysis and reports. \\
-moonshine1l & Dataset preparation and fixed split, dataset class, preprocessing, augmentation and loaders, category-aware augmentation, inference benchmark, failure-case figure script, demo script \tbd. \\
-psandersi & Model builder, training loop, losses and CPU configuration; all training runs; test evaluation, per-image metrics and inference benchmarks; failure-case figures; weights release \tbd. \\
-AigulFar & Loss unit tests, per-image metrics script, failure-case analysis, reproducibility check \tbd. \\
+moonshine1l & Dataset preparation and fixed split, dataset class, preprocessing, augmentation and loaders, category-aware augmentation, inference benchmark, failure-case figure script, demo script. \\
+psandersi & Model builder, training loop, losses and CPU configuration; all training runs; test evaluation, per-image metrics and inference benchmarks; failure-case figures; weights release and demo dry run. \\
+AigulFar & Loss unit tests, per-image metrics script, failure-case analysis, clean-clone reproducibility check. \\
 \bottomrule
 \end{tabularx}
 \end{table}
