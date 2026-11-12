@@ -66,6 +66,8 @@ The printed metrics must match [`results/runs/cpu_light_dice_focal_512/evaluatio
 
 ## Demo
 
+**Live demo:** [huggingface.co/spaces/Jestersw/defect-segmentation](https://huggingface.co/spaces/Jestersw/defect-segmentation): upload an image or click an example to see the final model's defect mask. The same app runs locally with `pip install gradio==5.50.0` and `python app.py`.
+
 Run the final model on any image files; each input produces a figure (input, probability heatmap, overlay) and a JSON with predicted area, maximum probability, defect flag and inference time:
 
 ```sh
